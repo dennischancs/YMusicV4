@@ -28,6 +28,12 @@ let captionOn = false;
 let preferVss: string | null = null;
 let preferLanguage: string | null = null;
 let cues: Cue[] = [];
+let altCues: Cue[] = [];
+let secondaryVss: string | null = null;
+let preferSecondaryVss: string | null = null;
+let preferSecondaryLanguage: string | null = null;
+let transcriptGen = 0;
+let sentTranscriptGen = -1;
 let mintPo: ((id: string) => Promise<string>) | null = null;
 let sessionSink: PipeSink | null = null;
 let sessionPipe: Pipe | null = null;
@@ -138,7 +144,9 @@ export function ingestPlayerCaptions(rec: Record<string, unknown>): void {
   }
   tracks = out;
   selectedVss = captionOn ? pickTrack() : null;
+  secondaryVss = captionOn ? pickSecondary() : null;
   cues = [];
+  altCues = [];
   debug(function () {
     return "caption ingest tracks=" + out.length + " vid=" + videoId;
   });
@@ -176,15 +184,30 @@ export function selectedCaptionVss(): string | null {
 }
 
 /** [key] is a vssId or a language code; it becomes the preference kept across videos. */
-export function setCaptionPreference(visible: boolean, key: string | null): void {
+export function setCaptionPreference(
+  visible: boolean,
+  key: string | null,
+  secondary: string | null = null,
+): void {
   captionOn = visible;
   if (key) {
     const track = findTrack(key);
     preferVss = track ? track.vssId : null;
     preferLanguage = track ? track.languageCode : key;
   }
+  if (secondary) {
+    const track = findTrack(secondary);
+    preferSecondaryVss = track ? track.vssId : null;
+    preferSecondaryLanguage = track ? track.languageCode : secondary;
+  } else {
+    preferSecondaryVss = null;
+    preferSecondaryLanguage = null;
+  }
   selectedVss = captionOn ? pickTrack() : null;
+  secondaryVss = captionOn ? pickSecondary() : null;
+  if (secondaryVss && secondaryVss === selectedVss) secondaryVss = null;
   cues = [];
+  altCues = [];
   if (sessionSink) void reloadCues();
   if (captionsChanged) captionsChanged();
 }
@@ -206,6 +229,22 @@ function pickTrack(): string | null {
   }
   const picked = sameLanguageAuto || firstAuto || firstHuman;
   return picked ? picked.vssId : null;
+}
+
+/** Same rules as [pickTrack], never the primary track. */
+function pickSecondary(): string | null {
+  if (!preferSecondaryVss && !preferSecondaryLanguage) return null;
+  if (preferSecondaryVss && preferSecondaryVss !== selectedVss && findTrack(preferSecondaryVss)) {
+    return preferSecondaryVss;
+  }
+  let sameLanguageAuto: CaptionTrack | null = null;
+  for (let i = 0; i < tracks.length; i++) {
+    const track = tracks[i]!;
+    if (track.vssId === selectedVss || track.languageCode !== preferSecondaryLanguage) continue;
+    if (track.kind !== "asr" && track.kind !== "asrt") return track.vssId;
+    if (!sameLanguageAuto || sameLanguageAuto.kind === "asrt") sameLanguageAuto = track;
+  }
+  return sameLanguageAuto ? sameLanguageAuto.vssId : null;
 }
 
 function findTrack(vss: string): CaptionTrack | null {
@@ -398,6 +437,46 @@ function cueRows(text: string): string {
   return rows.join("\n");
 }
 
+/* A secondary cue belongs to the one primary cue that contains its midpoint. */
+function altFor(cue: Cue): string {
+  if (!altCues.length) return "";
+  const start = cue.startMs;
+  const end = cue.startMs + cue.durationMs;
+  const parts: string[] = [];
+  for (let i = 0; i < altCues.length; i++) {
+    const alt = altCues[i]!;
+    const mid = alt.startMs + alt.durationMs / 2;
+    if (mid < start || mid >= end) continue;
+    const text = cueRows(fullText(alt))
+      .replace(/\n/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .trim();
+    if (text.length) parts.push(text);
+  }
+  return parts.join(" · ");
+}
+
+function transcriptRows(): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 0; i < cues.length; i++) {
+    const cue = cues[i]!;
+    const text = cueRows(fullText(cue));
+    if (!text.length) continue;
+    const startMs = Math.round(cue.startMs);
+    const endMs = Math.max(startMs, Math.round(cue.startMs + cue.durationMs));
+    const row: Record<string, unknown> = {
+      "id": cue.id,
+      "startMs": startMs,
+      "endMs": endMs,
+      "text": text,
+    };
+    const alt = altFor(cue);
+    if (alt.length) row["alt"] = alt;
+    rows.push(row);
+  }
+  return rows;
+}
+
 function nextTickMs(nowMs: number): number | null {
   if (!cues.length) return null;
   let cur = -1;
@@ -438,18 +517,23 @@ async function emitWindow(): Promise<void> {
   const sink = sessionSink;
   if (!sink) return;
   const lines = selectedVss ? windowAt(nowMs()) : [];
-  const rec: Record<string, unknown> = { "lines": lines };
-  const js = JSON.stringify(rec);
-  if (js === lastLinesJson) return;
-  lastLinesJson = js;
   const rows: Record<string, unknown>[] = [];
   for (let i = 0; i < lines.length; i++) {
     rows.push({ "id": lines[i]!.id, "text": lines[i]!.text });
   }
-  const p = sink.writeObjectAsJson({ "lines": rows });
+  const rec: Record<string, unknown> = { "lines": rows };
+  const sentGen = transcriptGen;
+  const sendingTranscript = sentTranscriptGen !== sentGen;
+  if (sendingTranscript) rec["transcript"] = transcriptRows();
+  const js = JSON.stringify(rec);
+  if (js === lastLinesJson) return;
+  const p = sink.writeObjectAsJson(rec);
   if (p) await p;
   const f = sink.flush();
   if (f) await f;
+  /* Commit after the write lands, so a failed write sends this script again. */
+  lastLinesJson = js;
+  if (sendingTranscript) sentTranscriptGen = sentGen;
   debug(function () {
     return "caption emit n=" + rows.length;
   });
@@ -515,28 +599,18 @@ function onCaptionPause(): void {
 }
 
 /* YouTube refuses auto-translate fetches (429, or 200 with an empty body); the source language beats no captions. */
-async function reloadCues(untranslated = false): Promise<void> {
-  stopTimer();
-  cues = [];
-  lastLinesJson = "";
-  if (!sessionSink) return;
-  if (!selectedVss) {
-    await emitWindow();
-    return;
-  }
-  const tr = findTrack(selectedVss);
-  if (!tr) {
-    await emitWindow();
-    return;
-  }
-  const g = ++fetchGen;
+async function fetchTrackCuesOnce(
+  tr: CaptionTrack,
+  gen: number,
+  untranslated: boolean,
+): Promise<Cue[] | null> {
   let url = withFmtJson3(tr.baseUrl);
   const translate = !!tr.tlang && !untranslated;
   if (translate) url = setQuery(url, "tlang", tr.tlang!);
   if (mintPo && videoId) {
     try {
       const pot = await mintPo(videoId);
-      if (g !== fetchGen) return;
+      if (gen !== fetchGen) return null;
       if (pot) url = setQuery(url, "pot", pot);
     } catch (e) {
       console.warn("caption pot mint failed: " + (e instanceof Error ? e.message : String(e)));
@@ -564,24 +638,22 @@ async function reloadCues(untranslated = false): Promise<void> {
     }
     if (visitor) req.setHeader("X-Goog-Visitor-Id", visitor);
     const res = await executeWithCookies(url, req);
-    if (g !== fetchGen) {
+    if (gen !== fetchGen) {
       res.close();
-      return;
+      return null;
     }
     if (!res.ok) {
       console.warn(
         "caption timedtext HTTP " + res.status + (translate ? " tlang=" + tr.tlang : ""),
       );
       res.close();
-      if (translate) return reloadCues(true);
-      await emitWindow();
-      return;
+      return [];
     }
     const body = await res.text();
-    if (g !== fetchGen) return;
-    cues = parseJson3(body);
+    if (gen !== fetchGen) return null;
+    const parsed = parseJson3(body);
     const ctype = res.headers.get("content-type") || "";
-    if (cues.length) {
+    if (parsed.length) {
       debug(function () {
         return (
           "caption timedtext ok status=" +
@@ -589,7 +661,7 @@ async function reloadCues(untranslated = false): Promise<void> {
           " bytes=" +
           body.length +
           " cues=" +
-          cues.length +
+          parsed.length +
           " ctype=" +
           ctype +
           " head=" +
@@ -605,21 +677,53 @@ async function reloadCues(untranslated = false): Promise<void> {
           " bytes=" +
           body.length +
           " cues=" +
-          cues.length +
+          parsed.length +
           " ctype=" +
           ctype +
           " head=" +
           body.slice(0, 80).replace(/\n/g, " "),
       );
-      if (translate) return reloadCues(true);
     }
+    return parsed;
   } catch (e) {
-    if (g !== fetchGen) return;
+    if (gen !== fetchGen) return null;
     console.warn("caption timedtext failed: " + (e instanceof Error ? e.message : String(e)));
-    if (translate) return reloadCues(true);
+    return [];
+  }
+}
+
+async function fetchTrackCues(tr: CaptionTrack, gen: number): Promise<Cue[] | null> {
+  const first = await fetchTrackCuesOnce(tr, gen, false);
+  if (first == null || first.length || !tr.tlang) return first;
+  return fetchTrackCuesOnce(tr, gen, true);
+}
+
+async function reloadCues(): Promise<void> {
+  stopTimer();
+  const g = ++fetchGen;
+  if (!sessionSink) return;
+  const tr = selectedVss ? findTrack(selectedVss) : null;
+  /* Empty script only when captions are off or the track is gone. */
+  if (!tr) {
+    cues = [];
+    altCues = [];
+    transcriptGen++;
     await emitWindow();
     return;
   }
+  const primary = await fetchTrackCues(tr, g);
+  if (primary == null || g !== fetchGen) return;
+  const sec = secondaryVss ? findTrack(secondaryVss) : null;
+  let alt: Cue[] = [];
+  if (sec) {
+    const fetched = await fetchTrackCues(sec, g);
+    if (fetched == null || g !== fetchGen) return;
+    alt = fetched;
+  }
+  if (g !== fetchGen) return;
+  cues = primary;
+  altCues = alt;
+  transcriptGen++;
   await emitWindow();
   armTimer();
 }
@@ -651,6 +755,7 @@ export async function runCaptionSession(pipe: Pipe): Promise<void> {
     stopTimer();
     fetchGen++;
     cues = [];
+    altCues = [];
     sessionSink = null;
     sessionPipe = null;
     lastLinesJson = "";
