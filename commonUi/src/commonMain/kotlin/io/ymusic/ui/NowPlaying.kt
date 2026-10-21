@@ -69,6 +69,7 @@ import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -165,6 +166,7 @@ import io.ymusic.ui.resources.cd_repeat_all
 import io.ymusic.ui.resources.cd_repeat_off
 import io.ymusic.ui.resources.cd_repeat_one
 import io.ymusic.ui.resources.cd_rewind10
+import io.ymusic.ui.resources.cd_share
 import io.ymusic.ui.resources.cd_shuffle
 import io.ymusic.ui.resources.cd_unlock_rotation
 import io.ymusic.ui.resources.download_audio_track
@@ -1238,6 +1240,11 @@ private fun PlayerTopBar(coordinator: PlaybackCoordinator, sleepMs: Long?, onClo
                 onSelect = { player.selectVideoQuality(it) },
             )
         }
+        val current = queue.currentItem
+        val share = rememberSharePlayable(coordinator.graph)
+        if (current != null) {
+            ActionIcon(Icons.Outlined.Share, stringResource(Res.string.cd_share), onClick = { share(current) })
+        }
         PlayerMoreMenu(coordinator)
     }
 }
@@ -1356,7 +1363,7 @@ private fun MoreMenuDivider() {
     HorizontalDivider(Modifier.padding(vertical = DesignSpacing.Space4), color = DesignColors.Divider)
 }
 
-/** The ⋮ menu, grouped: this video + queue · sound · player. Captions live on the video CC control;
+/** The ⋮ menu, grouped: this item (share, details, queue) · sound · player. Captions live on the video CC control;
  *  audio-only is a quality-chip option, not a toggle here. */
 @Composable
 private fun PlayerMoreMenu(coordinator: PlaybackCoordinator) {
@@ -1366,18 +1373,26 @@ private fun PlayerMoreMenu(coordinator: PlaybackCoordinator) {
     var playbackOpen by remember { mutableStateOf(false) }
     var eqOpen by remember { mutableStateOf(false) }
     var detailsOpen by remember { mutableStateOf(false) }
-    val video = player.queue.collectAsState().value.currentItem as? PlayableItem.YtMedia
+    val current = player.queue.collectAsState().value.currentItem
+    val video = current as? PlayableItem.YtMedia
     val ytPlaylists = LocalYtPlaylistActions.current
     val snackbar = LocalSnackbar.current
     val noVideos = stringResource(Res.string.yt_playlist_queue_empty)
     val scope = rememberCoroutineScope()
     var tracksOpen by remember { mutableStateOf(false) }
     val config by player.config.collectAsState()
+    val share = rememberSharePlayable(coordinator.graph)
     HoldVideoOverlay(open || tracksOpen || playbackOpen || eqOpen || detailsOpen)
 
     Box {
         ActionIcon(Icons.Default.MoreVert, stringResource(Res.string.cd_more), onClick = { open = true })
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.width(MoreMenuWidth)) {
+            if (current != null) {
+                MoreMenuItem(Icons.Outlined.Share, stringResource(Res.string.cd_share)) {
+                    open = false
+                    share(current)
+                }
+            }
             if (video != null) {
                 MoreMenuItem(Icons.Outlined.Info, stringResource(Res.string.menu_details_comments)) {
                     detailsOpen = true
@@ -1855,6 +1870,7 @@ private fun QueueRow(
     large: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val share = rememberSharePlayable(coordinator.graph)
     val dragging = dragState.draggingIndex == index
     Row(
         Modifier
@@ -1926,6 +1942,21 @@ private fun QueueRow(
                 onClick = { menuOpen = true },
             )
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.cd_share)) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Outlined.Share,
+                            contentDescription = null,
+                            Modifier.size(20.dp),
+                            tint = DesignColors.InkMuted,
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        share(item)
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.remove_from_queue)) },
                     onClick = { coordinator.player.removeAt(index); menuOpen = false },

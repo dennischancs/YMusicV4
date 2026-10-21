@@ -121,6 +121,8 @@
     <string name="yt_playlist_removed_video">已從播放清單中移除 %1$s</string>
     <string name="cd_add_to_playlist">加入播放清單</string>
     <string name="cd_share">分享</string>
+    <string name="share_copied">已複製到剪貼簿</string>
+    <string name="share_failed">無法分享</string>
     <string name="cd_music_video">音樂</string>
     <string name="cd_album">專輯</string>
 

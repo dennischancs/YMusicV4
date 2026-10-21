@@ -52,6 +52,7 @@ import io.ymusic.download.DownloadState
 import io.ymusic.download.DownloadTask
 import io.ymusic.download.DownloadTasksAggregator
 import io.ymusic.ui.resources.Res
+import io.ymusic.ui.resources.cd_share
 import io.ymusic.ui.resources.dialog_cancel
 import io.ymusic.ui.resources.download_size_kb
 import io.ymusic.ui.resources.download_size_mb
@@ -442,7 +443,10 @@ private fun actionsFor(
     onRevealLibrary: (() -> Unit)?,
     onRevealFolder: (() -> Unit)?,
 ): ItemActions {
+    val share = rememberShareAction()
+    val shareLabel = stringResource(Res.string.cd_share)
     val entries = buildList<Pair<String, () -> Unit>> {
+        add(shareLabel to { share(shareTextForYouTube(task.videoId, task.title)) })
         when (task.state) {
             DownloadState.QUEUED, DownloadState.PREPARING, DownloadState.DOWNLOADING, DownloadState.PROCESSING -> {
                 add(stringResource(Res.string.downloads_action_pause) to { service.pause(task.id) })
