@@ -29,6 +29,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import projectcommon.error.CodedError
 import projectcommon.json.intOrNull
+import projectcommon.json.longOrNull
 import projectcommon.json.objects
 import projectcommon.json.stringOrNull
 
@@ -225,14 +226,21 @@ class DynamicEnginePlayer private constructor(
 
     /**
      * Captions on/off plus the preferred track: [vssId] may also be a language code. JS keeps the
-     * preference across videos and reports the actual pick on the catalog channel.
+     * preference across videos and reports the actual pick on the catalog channel. [secondaryVssId]
+     * is the optional second language; null leaves a single track.
      */
-    suspend fun setCaption(vssId: String?, logger: Logger? = null, visible: Boolean = vssId != null) {
+    suspend fun setCaption(
+        vssId: String?,
+        logger: Logger? = null,
+        visible: Boolean = vssId != null,
+        secondaryVssId: String? = null,
+    ) {
         engine.jsonCommand(
             "player/setCaption",
             { writer ->
                 if (vssId == null) writer.name("vssId").nullValue() else writer.name("vssId").value(vssId)
                 writer.name("visible").value(visible)
+                if (secondaryVssId == null) writer.name("secondaryVssId").nullValue() else writer.name("secondaryVssId").value(secondaryVssId)
             },
             logger,
         ) { it.skipValue() }
@@ -240,7 +248,7 @@ class DynamicEnginePlayer private constructor(
 
     /** Subscribe to paint-on lines until cancelled. Host close pauses JS caption work. */
     @Suppress("UNUSED_PARAMETER")
-    suspend fun collectCaptionLines(onLines: (List<CaptionLine>) -> Unit, logger: Logger? = null) {
+    suspend fun collectCaptionLines(onLines: (CaptionStream) -> Unit, logger: Logger? = null) {
         val pipe = engine.openPipe("player/caption")
         try {
             val reader = JsonReader(pipe.source.asBufferedSource())
@@ -252,7 +260,7 @@ class DynamicEnginePlayer private constructor(
                 } catch (e: PipeResetException) {
                     throw decodeEngineError(e.reason, e)
                 }
-                onLines(obj.captionLines())
+                onLines(obj.captionStream())
             }
         } catch (e: CancellationException) {
             throw e
@@ -387,9 +395,44 @@ data class CaptionLine(
     val text: String,
 )
 
+data class CaptionCueInfo(
+    val id: Int,
+    val startMs: Long,
+    val endMs: Long,
+    val text: String,
+    val alt: String,
+)
+
+/** [cues] is null when this tick did not carry a script (the host keeps the one it already has). */
+data class CaptionStream(
+    val lines: List<CaptionLine>,
+    val cues: List<CaptionCueInfo>?,
+)
+
 private fun JsonObject.captionLines(): List<CaptionLine> {
     return objects("lines").mapNotNull { o ->
         val id = o.intOrNull("id") ?: return@mapNotNull null
         CaptionLine(id = id, text = o.stringOrNull("text").orEmpty())
     }
+}
+
+private fun JsonObject.captionStream(): CaptionStream {
+    val cues = if (containsKey("transcript")) {
+        objects("transcript").mapNotNull { o ->
+            val id = o.intOrNull("id") ?: return@mapNotNull null
+            val start = o.longOrNull("startMs") ?: return@mapNotNull null
+            val text = o.stringOrNull("text").orEmpty()
+            if (text.isBlank()) return@mapNotNull null
+            CaptionCueInfo(
+                id = id,
+                startMs = start,
+                endMs = o.longOrNull("endMs") ?: start,
+                text = text,
+                alt = o.stringOrNull("alt").orEmpty(),
+            )
+        }
+    } else {
+        null
+    }
+    return CaptionStream(captionLines(), cues)
 }

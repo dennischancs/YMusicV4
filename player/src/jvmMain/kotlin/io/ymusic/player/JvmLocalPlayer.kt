@@ -51,6 +51,8 @@ internal class JvmLocalPlayer(
 
     private val _captionLines = MutableStateFlow<List<CaptionLine>>(emptyList())
     override val captionLines: StateFlow<List<CaptionLine>> = _captionLines.asStateFlow()
+    private val _captionCues = MutableStateFlow<List<CaptionCue>>(emptyList())
+    override val captionCues: StateFlow<List<CaptionCue>> = _captionCues.asStateFlow()
 
     private val nativeCues = ArrayList<LocalCue>()
     private var sidecarTracks: List<SidecarTrack> = emptyList()
@@ -321,6 +323,7 @@ internal class JvmLocalPlayer(
         usingSidecar = false
         synchronized(nativeCues) { nativeCues.clear() }
         _captionLines.value = emptyList()
+        _captionCues.value = emptyList()
         _progress.value = Progress()
         _status.update { it.copy(state = PlaybackState.Idle) }
         showSurface(false)
@@ -381,7 +384,10 @@ internal class JvmLocalPlayer(
             config.captionVisible != prev.captionVisible
         ) {
             publishCaptions(config)
-            if (!config.captionVisible) _captionLines.value = emptyList()
+            if (!config.captionVisible) {
+                _captionLines.value = emptyList()
+                _captionCues.value = emptyList()
+            }
             dispatch {
                 if (handle == 0L) return@dispatch
                 applyNativeCaption(config)
@@ -691,6 +697,7 @@ internal class JvmLocalPlayer(
     private fun emitCaptionLines(posSec: Double) {
         if (!appliedConfig.captionVisible) {
             if (_captionLines.value.isNotEmpty()) _captionLines.value = emptyList()
+            if (_captionCues.value.isNotEmpty()) _captionCues.value = emptyList()
             return
         }
         val src = if (usingSidecar) sidecarCues else synchronized(nativeCues) { nativeCues.toList() }
@@ -700,6 +707,23 @@ internal class JvmLocalPlayer(
             if (rows.isEmpty()) null else CaptionLine(cue.id, rows.joinToString("\n"))
         }
         if (lines != _captionLines.value) _captionLines.value = lines
+        publishCaptionCues()
+    }
+
+    private fun publishCaptionCues() {
+        val next = if (!appliedConfig.captionVisible || !usingSidecar) {
+            emptyList()
+        } else {
+            sidecarCues.map { cue ->
+                CaptionCue(
+                    cue.id,
+                    (cue.startSec * 1000.0).toLong(),
+                    (cue.endSec * 1000.0).toLong(),
+                    cue.text.trim(),
+                )
+            }
+        }
+        if (next != _captionCues.value) _captionCues.value = next
     }
 
     private fun fail(message: String) {

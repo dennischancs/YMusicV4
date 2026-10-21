@@ -81,6 +81,9 @@ internal class PlayerImpl(
     private val _captionLines = MutableStateFlow<List<CaptionLine>>(emptyList())
     override val captionLines: StateFlow<List<CaptionLine>> = _captionLines.asStateFlow()
 
+    private val _captionCues = MutableStateFlow<List<CaptionCue>>(emptyList())
+    override val captionCues: StateFlow<List<CaptionCue>> = _captionCues.asStateFlow()
+
     private val _audioTracks = MutableStateFlow(AudioTrackState.DEFAULT)
     override val audioTracks: StateFlow<AudioTrackState> = _audioTracks.asStateFlow()
 
@@ -369,6 +372,13 @@ internal class PlayerImpl(
 
     override fun selectCaption(languageCode: String?) =
         pushConfig(currentConfig.copy(preferCaptionLanguage = (languageCode ?: PlaybackConfig.UNDETERMINED_LANGUAGE) to nextSeq()))
+
+    override fun selectSecondaryCaption(languageCode: String?) =
+        pushConfig(
+            currentConfig.copy(
+                preferSecondaryCaptionLanguage = (languageCode ?: PlaybackConfig.UNDETERMINED_LANGUAGE) to nextSeq(),
+            ),
+        )
 
     override fun setCaptionVisible(visible: Boolean) = pushConfig(currentConfig.copy(captionVisible = visible))
 
@@ -780,6 +790,7 @@ internal class PlayerImpl(
         bindCapability(engine as? VideoQualitySelectable, _videoQuality, VideoQualityState.DEFAULT) { it.videoQuality }
         bindCapability(engine as? CaptionSelectable, _captions, CaptionState.DEFAULT) { it.captions }
         bindCapability(engine as? CaptionRenderable, _captionLines, emptyList()) { it.captionLines }
+        bindCapability(engine as? CaptionRenderable, _captionCues, emptyList()) { it.captionCues }
         bindCapability(engine as? AudioTrackSelectable, _audioTracks, AudioTrackState.DEFAULT) { it.audioTracks }
         bindCapability(engine as? AudioSessionSource, _audioSessionId, 0) { it.audioSessionId }
         (engine as? YtEngine)?.let { yt ->

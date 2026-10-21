@@ -44,6 +44,7 @@ class PlayerFacadeTest {
         override val videoQuality = MutableStateFlow(VideoQualityState.DEFAULT)
         override val captions = MutableStateFlow(CaptionState.DEFAULT)
         override val captionLines = MutableStateFlow<List<CaptionLine>>(emptyList())
+        override val captionCues = MutableStateFlow<List<CaptionCue>>(emptyList())
         override val audioTracks = MutableStateFlow(AudioTrackState.DEFAULT)
 
         override fun preload(source: S?) {
