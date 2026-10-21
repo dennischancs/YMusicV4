@@ -151,6 +151,8 @@
     <string name="yt_playlist_removed_video">تمت إزالة %1$s من قائمة التشغيل</string>
     <string name="cd_add_to_playlist">إضافة إلى قائمة التشغيل</string>
     <string name="cd_share">مشاركة</string>
+    <string name="share_copied">تم النسخ إلى الحافظة</string>
+    <string name="share_failed">تعذر المشاركة</string>
     <string name="cd_music_video">موسيقى</string>
     <string name="cd_album">ألبوم</string>
 
