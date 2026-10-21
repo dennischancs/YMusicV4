@@ -95,6 +95,7 @@ internal class StubPlayer : Player {
     override val videoQuality: StateFlow<VideoQualityState> = MutableStateFlow(VideoQualityState.DEFAULT)
     override val captions: StateFlow<CaptionState> = MutableStateFlow(CaptionState.DEFAULT)
     override val captionLines: StateFlow<List<io.ymusic.player.CaptionLine>> = MutableStateFlow(emptyList())
+    override val captionCues: StateFlow<List<io.ymusic.player.CaptionCue>> = MutableStateFlow(emptyList())
     override val audioTracks: StateFlow<AudioTrackState> = MutableStateFlow(AudioTrackState.DEFAULT)
     override val audioSessionId: StateFlow<Int> = MutableStateFlow(0)
     override val config: StateFlow<PlaybackConfig> = MutableStateFlow(PlaybackConfig())
@@ -199,6 +200,8 @@ internal class StubPlayer : Player {
     override fun selectVideoQuality(quality: String) {}
 
     override fun selectCaption(languageCode: String?) {}
+
+    override fun selectSecondaryCaption(languageCode: String?) {}
 
     override fun setCaptionVisible(visible: Boolean) {}
 
