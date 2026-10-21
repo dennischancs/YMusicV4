@@ -144,6 +144,8 @@ import io.ymusic.ui.resources.audio_only
 import io.ymusic.ui.resources.badge_live
 import io.ymusic.ui.resources.captions_auto_translate
 import io.ymusic.ui.resources.captions_off
+import io.ymusic.ui.resources.captions_primary
+import io.ymusic.ui.resources.captions_secondary
 import io.ymusic.ui.resources.cd_captions
 import io.ymusic.ui.resources.cd_close
 import io.ymusic.ui.resources.cd_download
@@ -587,6 +589,7 @@ private fun PortraitNowPlaying(
                     }
                     SeekBar(player, progress)
                     TransportRow(coordinator, status.playWhenReady)
+                    CaptionScript(player)
                 }
             }
             stickyHeader {
@@ -664,6 +667,7 @@ private fun LandscapeNowPlaying(
                     .background(DesignColors.Surface),
             ) {
                 PlayerTopBar(coordinator, sleepMs, onClose)
+                CaptionScript(player)
                 QueueHeader(coordinator, queue.currentIndex, queue.displayTotal, queue.shuffle, queue.loopMode)
                 HorizontalDivider(color = DesignColors.Divider)
                 val queueListState = rememberLazyListState()
@@ -943,8 +947,8 @@ private fun BoxScope.PlayerCaptionOverlay(
 
 /**
  * The video CC control: hidden when the source has no caption tracks. Tapping opens a menu of
- * Off + every available language (checkmark on the active one); the glyph is accent-filled while
- * captions are on. Picking a language turns captions on and selects it; Off hides them.
+ * Off + every available language. The first pick is the primary line, a second pick is the smaller
+ * line under it; picking either again clears that role. Off hides them.
  */
 @Composable
 private fun CaptionToggle(player: io.ymusic.player.Player, offTint: Color, iconSize: Dp = 24.dp, hitSize: Dp = 40.dp) {
@@ -955,13 +959,40 @@ private fun CaptionToggle(player: io.ymusic.player.Player, offTint: Color, iconS
     var translateOpen by remember { mutableStateOf(false) }
     HoldVideoOverlay(open || translateOpen)
     val (translations, tracks) = captions.tracks.partition { it.kind == AUTO_TRANSLATE_KIND }
-    fun isOn(track: io.ymusic.player.CaptionTrack) = config.captionVisible &&
-        (track.id == captions.selectedLanguage || track.languageCode == captions.selectedLanguage)
-    fun pick(track: io.ymusic.player.CaptionTrack) {
-        player.selectCaption(track.id)
-        player.setCaptionVisible(true)
-        open = false
-        translateOpen = false
+    val und = io.ymusic.player.PlaybackConfig.UNDETERMINED_LANGUAGE
+    val secondaryKey = config.preferSecondaryCaptionLanguage.first.takeIf { config.captionVisible && it != und }
+    fun matches(track: io.ymusic.player.CaptionTrack, key: String?) =
+        key != null && (track.id == key || track.languageCode == key)
+    fun role(track: io.ymusic.player.CaptionTrack): Int = when {
+        !config.captionVisible -> 0
+        matches(track, captions.selectedLanguage) ||
+            matches(track, config.preferCaptionLanguage.first.takeIf { it != und }) -> 1
+        matches(track, secondaryKey) -> 2
+        else -> 0
+    }
+    fun toggle(track: io.ymusic.player.CaptionTrack) {
+        val primary = if (config.captionVisible) {
+            captions.selectedLanguage ?: config.preferCaptionLanguage.first.takeIf { it != und }
+        } else {
+            null
+        }
+        when (role(track)) {
+            1 -> if (secondaryKey != null) {
+                player.selectCaption(secondaryKey)
+                player.selectSecondaryCaption(null)
+            } else {
+                player.setCaptionVisible(false)
+                open = false
+                translateOpen = false
+            }
+            2 -> player.selectSecondaryCaption(null)
+            else -> if (primary == null) {
+                player.selectCaption(track.id)
+                player.setCaptionVisible(true)
+            } else if (track.id != primary && track.languageCode != primary) {
+                player.selectSecondaryCaption(track.id)
+            }
+        }
     }
     Box {
         ActionIcon(
@@ -984,22 +1015,22 @@ private fun CaptionToggle(player: io.ymusic.player.Player, offTint: Color, iconS
                 tracks.forEach { track ->
                     DropdownMenuItem(
                         text = { Text(track.displayName) },
-                        onClick = { pick(track) },
-                        modifier = Modifier.menuChoice(isOn(track)),
-                        trailingIcon = selectedCheck(isOn(track)),
+                        onClick = { toggle(track) },
+                        modifier = Modifier.menuChoice(role(track) != 0, checkbox = true),
+                        trailingIcon = captionRoleLabel(role(track)),
                     )
                 }
                 if (translations.isNotEmpty()) {
                     val label = stringResource(Res.string.captions_auto_translate)
-                    val current = translations.firstOrNull { isOn(it) }
+                    val current = translations.firstOrNull { role(it) != 0 }
                     DropdownMenuItem(
                         text = { Text(if (current != null) "$label · ${current.displayName}" else "$label ›") },
                         onClick = {
                             open = false
                             translateOpen = true
                         },
-                        modifier = Modifier.menuChoice(current != null),
-                        trailingIcon = selectedCheck(current != null),
+                        modifier = Modifier.menuChoice(current != null, checkbox = true),
+                        trailingIcon = if (current != null) captionRoleLabel(role(current)) else null,
                     )
                 }
             }
@@ -1011,9 +1042,9 @@ private fun CaptionToggle(player: io.ymusic.player.Player, offTint: Color, iconS
                     items(translations, key = { it.id }) { track ->
                         DropdownMenuItem(
                             text = { Text(track.displayName) },
-                            onClick = { pick(track) },
-                            modifier = Modifier.menuChoice(isOn(track)),
-                            trailingIcon = selectedCheck(isOn(track)),
+                            onClick = { toggle(track) },
+                            modifier = Modifier.menuChoice(role(track) != 0, checkbox = true),
+                            trailingIcon = captionRoleLabel(role(track)),
                         )
                     }
                 }
@@ -1256,15 +1287,25 @@ internal fun QualityChip(
     }
 }
 
-private fun Modifier.menuChoice(selected: Boolean) = semantics {
+private fun Modifier.menuChoice(selected: Boolean, checkbox: Boolean = false) = semantics {
     this.selected = selected
-    role = Role.RadioButton
+    role = if (checkbox) Role.Checkbox else Role.RadioButton
 }
 
 private fun selectedCheck(selected: Boolean): (@Composable () -> Unit)? = if (selected) {
     { Icon(Icons.Default.Check, contentDescription = null, tint = DesignColors.Accent) }
 } else {
     null
+}
+
+private fun captionRoleLabel(role: Int): (@Composable () -> Unit)? = when (role) {
+    1 -> {
+        { Text(stringResource(Res.string.captions_primary), color = DesignColors.Accent, fontSize = 12.sp) }
+    }
+    2 -> {
+        { Text(stringResource(Res.string.captions_secondary), color = DesignColors.InkSecondary, fontSize = 12.sp) }
+    }
+    else -> null
 }
 
 /** Material's menu-item width cap; fixed so labels wrap instead of setting the menu's width. */
