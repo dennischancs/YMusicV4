@@ -94,6 +94,7 @@ import io.ymusic.ui.resources.Res
 import io.ymusic.ui.resources.add_to_playlist_new
 import io.ymusic.ui.resources.cd_add_to_playlist
 import io.ymusic.ui.resources.cd_back
+import io.ymusic.ui.resources.cd_share
 import io.ymusic.ui.resources.delete_from_disk_confirm
 import io.ymusic.ui.resources.delete_from_disk_message
 import io.ymusic.ui.resources.delete_from_disk_title
@@ -1489,6 +1490,8 @@ private fun songActions(song: MediaStoreItem, coordinator: PlaybackCoordinator):
     val removeFromTopTracks = stringResource(Res.string.menu_remove)
     val showInFolder = stringResource(Res.string.menu_show_in_folder)
     val removeFromDisk = stringResource(Res.string.menu_remove_from_disk)
+    val shareLabel = stringResource(Res.string.cd_share)
+    val share = rememberShareAction()
     val reveal = LocalLibraryReveal.current
     val requestDelete = LocalLibraryDelete.current
     val addToPlaylist = LocalAddToPlaylist.current
@@ -1499,6 +1502,11 @@ private fun songActions(song: MediaStoreItem, coordinator: PlaybackCoordinator):
             add(play to { coordinator.playLocalSingle(song) })
             add(next to { coordinator.queueLocalNext(song) })
             add(last to { coordinator.queueLocalLast(song) })
+            add(shareLabel to {
+                val payload = song.youtubeVid?.let { shareTextForYouTube(it, song.title) }
+                    ?: shareTextForFile(song.uri.toString(), song.title)
+                share(payload)
+            })
             if (addToPlaylist != null) add(addToPlaylistLabel to { addToPlaylist(song) })
             if (removeFromPlaylist != null) add(removeFromPlaylistLabel to { removeFromPlaylist(song) })
             if (removeFromHistory != null) add(removeFromTopTracks to { removeFromHistory(song) })
