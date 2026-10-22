@@ -1,16 +1,16 @@
 package io.ymusic.ui
 
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,7 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.ymusic.player.CaptionCue
 import io.ymusic.player.Player
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * Scrollable caption script between the player and the queue. Three rows show at once: history
@@ -46,66 +48,81 @@ import io.ymusic.player.Player
 internal fun CaptionScript(player: Player, modifier: Modifier = Modifier) {
     val cues by player.captionCues.collectAsState()
     if (cues.isEmpty()) return
-    val progress by player.progress.collectAsState()
     val bilingual = remember(cues) { cues.any { it.alt.isNotBlank() } }
     val rowHeight = if (bilingual) 76.dp else 48.dp
-    val rowPx = with(LocalDensity.current) { rowHeight.roundToPx() }
-    val active = remember(cues, progress.positionMs) { activeCueIndex(cues, progress.positionMs) }
     val scriptKey = cues.firstOrNull()?.let { "${it.startMs}:${cues.size}:${it.text}" } ?: "0"
     val follow = remember(scriptKey) { mutableStateOf(true) }
-    val scroll = remember(scriptKey) { ScrollState(0) }
-    // Same key as [follow]: a new script replaces that state, and the connection has to write the new one.
-    val userScroll = remember(follow) {
+    val programmatic = remember(scriptKey) { CaptionFollow() }
+    val listState = remember(scriptKey) { LazyListState() }
+    // Progress ticks several times a second. The row only changes when the cue index does.
+    val active by produceState(initialValue = -1, player, cues) {
+        player.progress
+            .map { activeCueIndex(cues, it.positionMs) }
+            .distinctUntilChanged()
+            .collect { value = it }
+    }
+    val userScroll = remember(scriptKey) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput && available.y != 0f) follow.value = false
+                if (source == NestedScrollSource.UserInput && available.y != 0f && !programmatic.scrolling) {
+                    follow.value = false
+                }
                 return Offset.Zero
             }
         }
     }
 
-    LaunchedEffect(scroll, active, follow.value, rowPx) {
-        if (!follow.value || rowPx <= 0) return@LaunchedEffect
-        val target = if (active < 0) 0 else (active + 1) * rowPx
-        if (scroll.value == target) return@LaunchedEffect
-        scroll.animateScrollTo(target)
+    LaunchedEffect(active, follow.value, cues.size) {
+        if (!follow.value || cues.isEmpty()) return@LaunchedEffect
+        val index = if (active < 0) 0 else active + 1
+        if (listState.firstVisibleItemIndex == index && listState.firstVisibleItemScrollOffset == 0) {
+            return@LaunchedEffect
+        }
+        programmatic.scrolling = true
+        try {
+            listState.scrollToItem(index)
+        } finally {
+            programmatic.scrolling = false
+        }
     }
 
     Column(modifier.fillMaxWidth().background(DesignColors.SurfaceDim)) {
         HorizontalDivider(color = DesignColors.Divider)
-        Box(
-            Modifier
+        // Fixed height: the portrait queue measures this with an unbounded height. Two pad rows,
+        // then the cues, then one, so the active cue sits in the middle.
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
                 .fillMaxWidth()
                 .height(rowHeight * 3)
                 .clipToBounds()
-                .nestedScroll(userScroll),
+                .nestedScroll(userScroll)
+                .padding(horizontal = DesignSpacing.Space16),
         ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(scroll)
-                    .padding(horizontal = DesignSpacing.Space16),
-            ) {
-                // Two rows of headroom: before the first cue it sits in the bottom slot, then in the middle.
-                Spacer(Modifier.height(rowHeight * 2))
-                cues.forEachIndexed { index, cue ->
-                    CaptionScriptRow(
-                        cue = cue,
-                        active = index == active,
-                        past = active >= 0 && index < active,
-                        bilingual = bilingual,
-                        rowHeight = rowHeight,
-                        onClick = {
-                            follow.value = true
-                            player.seekTo(cue.startMs)
-                        },
-                    )
-                }
-                Spacer(Modifier.height(rowHeight))
+            item(key = "pad-a") { Spacer(Modifier.height(rowHeight)) }
+            item(key = "pad-b") { Spacer(Modifier.height(rowHeight)) }
+            itemsIndexed(cues, key = { index, cue -> "${cue.id}:${cue.startMs}:$index" }) { index, cue ->
+                CaptionScriptRow(
+                    cue = cue,
+                    active = index == active,
+                    past = active >= 0 && index < active,
+                    bilingual = bilingual,
+                    rowHeight = rowHeight,
+                    onClick = {
+                        follow.value = true
+                        player.seekTo(cue.startMs)
+                    },
+                )
             }
+            item(key = "pad-c") { Spacer(Modifier.height(rowHeight)) }
         }
         HorizontalDivider(color = DesignColors.Divider)
     }
+}
+
+/** True while the script is catching the playhead, so that scroll is not mistaken for a drag. */
+private class CaptionFollow {
+    var scrolling = false
 }
 
 @Composable
