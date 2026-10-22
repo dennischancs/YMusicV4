@@ -6,7 +6,7 @@ The shared Compose Multiplatform app UI (jvm + android; iOS later).
 
 - **Screens** — drawer navigation (Discover/YT Music/Library/Downloads/Settings); Discover feed tabs + search
   (live suggestions, paged results) over `:dynamic-engine`'s `yt` task methods; LibraryScreen over `:media-store`
-  flows; the persistent mini-player + full Now Playing (transport, sleep timer, capability selectors, caption script or on-video captions, share, queue).
+  flows; the persistent mini-player + full Now Playing (transport, sleep timer, capability selectors, caption script (returns to the playhead after a pause) or on-video captions, share, queue).
 
 - **SponsorBlock seam** — `ymusic.ui.sponsorblock`: `SponsorBlockApi` + `MockSponsorBlockApi` +
   SQLite cache/whitelist (`SponsorBlockStore`) + `SponsorBlockService` + `SponsorBlockCoordinator`

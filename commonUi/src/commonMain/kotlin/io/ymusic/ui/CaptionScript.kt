@@ -17,9 +17,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -32,28 +35,38 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.ymusic.player.CaptionCue
 import io.ymusic.player.Player
+import io.ymusic.settings.AppSettings
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /**
  * Scrollable caption script between the player and the queue. Three rows show at once: history
  * above, the cue at the playhead in the middle, upcoming below. A tap seeks to that cue. Dragging
- * or the wheel only moves the script.
+ * or the wheel leaves the script where it is. After [followSeconds] without scrolling it returns
+ * to the line at the playhead, without moving playback.
  */
 @Composable
-internal fun CaptionScript(player: Player, modifier: Modifier = Modifier) {
+internal fun CaptionScript(player: Player, followSeconds: Int, modifier: Modifier = Modifier) {
     val cues by player.captionCues.collectAsState()
     if (cues.isEmpty()) return
     val bilingual = remember(cues) { cues.any { it.alt.isNotBlank() } }
     val rowHeight = if (bilingual) 76.dp else 48.dp
     val scriptKey = cues.firstOrNull()?.let { "${it.startMs}:${cues.size}:${it.text}" } ?: "0"
-    val follow = remember(scriptKey) { mutableStateOf(true) }
+    var follow by remember(scriptKey) { mutableStateOf(true) }
+    var settle by remember(scriptKey) { mutableIntStateOf(0) }
     val programmatic = remember(scriptKey) { CaptionFollow() }
     val listState = remember(scriptKey) { LazyListState() }
+    val resumeMs = followSeconds.coerceIn(
+        AppSettings.CAPTION_FOLLOW_SECONDS_MIN,
+        AppSettings.CAPTION_FOLLOW_SECONDS_MAX,
+    ) * 1000L
     // Progress ticks several times a second. The row only changes when the cue index does.
     val active by produceState(initialValue = -1, player, cues) {
         player.progress
@@ -65,15 +78,43 @@ internal fun CaptionScript(player: Player, modifier: Modifier = Modifier) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (source == NestedScrollSource.UserInput && available.y != 0f && !programmatic.scrolling) {
-                    follow.value = false
+                    follow = false
                 }
                 return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (!programmatic.scrolling && !follow) settle++
+                return Velocity.Zero
             }
         }
     }
 
-    LaunchedEffect(active, follow.value, cues.size) {
-        if (!follow.value || cues.isEmpty()) return@LaunchedEffect
+    // A fling keeps isScrollInProgress set until it lands, so the wait starts at rest, not at the drag.
+    LaunchedEffect(listState, scriptKey) {
+        var dragging = false
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (programmatic.scrolling) return@collect
+            if (scrolling) {
+                dragging = true
+                follow = false
+                settle = 0
+            } else if (dragging) {
+                dragging = false
+                settle++
+            }
+        }
+    }
+    LaunchedEffect(scriptKey, resumeMs) {
+        snapshotFlow { settle }.collectLatest { ticket ->
+            if (ticket == 0 || follow) return@collectLatest
+            delay(resumeMs)
+            follow = true
+        }
+    }
+
+    LaunchedEffect(active, follow, cues.size) {
+        if (!follow || cues.isEmpty()) return@LaunchedEffect
         val index = if (active < 0) 0 else active + 1
         if (listState.firstVisibleItemIndex == index && listState.firstVisibleItemScrollOffset == 0) {
             return@LaunchedEffect
@@ -109,7 +150,8 @@ internal fun CaptionScript(player: Player, modifier: Modifier = Modifier) {
                     bilingual = bilingual,
                     rowHeight = rowHeight,
                     onClick = {
-                        follow.value = true
+                        follow = true
+                        settle = 0
                         player.seekTo(cue.startMs)
                     },
                 )

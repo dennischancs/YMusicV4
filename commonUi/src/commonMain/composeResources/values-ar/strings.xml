@@ -352,6 +352,11 @@
     <string name="settings_caption_placement_hint">على الفيديو، أو في القائمة أسفله. ملء الشاشة يعرضها على الفيديو دائمًا.</string>
     <string name="settings_caption_on_video">على الفيديو</string>
     <string name="settings_caption_below">أسفل الفيديو</string>
+    <string name="settings_caption_follow">العودة إلى السطر الحالي</string>
+    <string name="settings_caption_follow_hint">بعد تمرير قائمة الترجمة، انتظر هذه المدة ثم ارجع إلى السطر الذي يُشغَّل.</string>
+    <string name="settings_caption_follow_seconds">%1$d ث</string>
+    <string name="settings_caption_follow_less">انتظار أقصر</string>
+    <string name="settings_caption_follow_more">انتظار أطول</string>
     <string name="sponsor_block_included">حجب الإعلانات المموَّلة لهذا الفيديو</string>
     <string name="sponsor_block_excluded">عرض الإعلانات المموَّلة لهذا الفيديو</string>
     <string name="settings_sound">الصوت</string>
