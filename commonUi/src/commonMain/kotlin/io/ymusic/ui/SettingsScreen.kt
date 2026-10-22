@@ -53,6 +53,10 @@ import io.ymusic.ui.resources.settings_audio_focus_apps
 import io.ymusic.ui.resources.settings_audio_focus_calls
 import io.ymusic.ui.resources.settings_auto_update
 import io.ymusic.ui.resources.settings_auto_update_hint
+import io.ymusic.ui.resources.settings_caption_below
+import io.ymusic.ui.resources.settings_caption_on_video
+import io.ymusic.ui.resources.settings_caption_placement
+import io.ymusic.ui.resources.settings_caption_placement_hint
 import io.ymusic.ui.resources.settings_changelog
 import io.ymusic.ui.resources.settings_content_locale_hint
 import io.ymusic.ui.resources.settings_content_region
@@ -187,6 +191,7 @@ fun SettingsScreen(graph: AppGraph, signedIn: Boolean = false, onLogin: () -> Un
                 Res.string.settings_sponsor_block,
                 Res.string.settings_sponsor_block_hint,
             )
+            CaptionPlacementRow(graph)
             PlayerCacheRow(graph)
         }
         if (graph.downloads != null) {
@@ -277,6 +282,53 @@ internal fun ToggleRow(graph: AppGraph, setting: BoolSetting, title: StringResou
             )
         }
         CompactSwitch(enabled)
+    }
+}
+
+private val CaptionPlacementOptions: List<Pair<String, StringResource>> = listOf(
+    AppSettings.CAPTION_PLACEMENT_BELOW to Res.string.settings_caption_below,
+    AppSettings.CAPTION_PLACEMENT_VIDEO to Res.string.settings_caption_on_video,
+)
+
+@Composable
+private fun CaptionPlacementRow(graph: AppGraph) {
+    val scope = rememberCoroutineScope()
+    val current by remember(graph) { graph.settings.flow(AppSettings.captionPlacement) }.collectAsState()
+    val selected = CaptionPlacementOptions.firstOrNull { it.first == current } ?: CaptionPlacementOptions.first()
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clickable { open = true }
+                .padding(horizontal = DesignSpacing.SettingsRowHorizontal, vertical = DesignSpacing.SettingsRowVertical),
+        ) {
+            Text(
+                stringResource(Res.string.settings_caption_placement),
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = DesignColors.Ink),
+            )
+            Text(
+                stringResource(selected.second),
+                style = TextStyle(fontSize = 12.sp, color = DesignColors.Ink),
+                modifier = Modifier.padding(top = DesignSpacing.Space2),
+            )
+            Text(
+                stringResource(Res.string.settings_caption_placement_hint),
+                style = TextStyle(fontSize = 12.sp, color = DesignColors.InkSecondary),
+                modifier = Modifier.padding(top = DesignSpacing.Space2),
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            CaptionPlacementOptions.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(label)) },
+                    onClick = {
+                        open = false
+                        scope.launch { graph.settings.put(AppSettings.captionPlacement, value) }
+                    },
+                )
+            }
+        }
     }
 }
 

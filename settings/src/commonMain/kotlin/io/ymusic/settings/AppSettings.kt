@@ -176,6 +176,15 @@ object AppSettings {
     val sponsorBlockEnabled = BoolSetting("playback.sponsorBlock", true)
 
     /**
+     * Where open captions are drawn in Now Playing: [CAPTION_PLACEMENT_BELOW] (the script under
+     * the video) or [CAPTION_PLACEMENT_VIDEO] (the line on the picture). Fullscreen has no
+     * script pane, so the line stays on the picture there.
+     */
+    val captionPlacement = StringSetting("playback.captionPlacement", CAPTION_PLACEMENT_BELOW)
+    const val CAPTION_PLACEMENT_BELOW = "below"
+    const val CAPTION_PLACEMENT_VIDEO = "video"
+
+    /**
      * Overlay pictures-per-second on the Now Playing / fullscreen video hole.
      * Off by default. Sampling runs only while that hole is composed, the window is focused,
      * and playWhenReady is true.

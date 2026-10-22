@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### NEW
+- Captions: a scrollable script between the player and the queue. The line at the playhead stays in the middle; tap a line to jump there. CC can keep a main language and a smaller second line ([ffc060fc](https://github.com/dennischancs/YMusicV4/commit/ffc060fc), [3ca5f43d](https://github.com/dennischancs/YMusicV4/commit/3ca5f43d))
+- Share a video or song from Now Playing, the queue, Discover, Library and Downloads ([fcb1d881](https://github.com/dennischancs/YMusicV4/commit/fcb1d881))
+
+### IMPROVED
+- Captions are either on the video or in the list under it. Choose in Settings, or in the CC menu. Fullscreen still shows them on the video.
+
 ## 4.0.10
 
 ### NEW
