@@ -192,6 +192,8 @@ import io.ymusic.ui.resources.queue_loading_more
 import io.ymusic.ui.resources.queue_save_as_yt_playlist
 import io.ymusic.ui.resources.remove_from_queue
 import io.ymusic.ui.resources.retry
+import io.ymusic.ui.resources.settings_caption_below
+import io.ymusic.ui.resources.settings_caption_on_video
 import io.ymusic.ui.resources.signin_button
 import io.ymusic.ui.resources.sound_eq
 import io.ymusic.ui.resources.sponsor_block_excluded
@@ -475,6 +477,7 @@ private fun FullscreenVideo(graph: AppGraph, coordinator: PlaybackCoordinator, o
                 )
             }
             status.error?.let { PlaybackErrorText(graph.player, it, VideoOverlayNative.showing) }
+            // Fullscreen has no script pane, so the line stays on the picture.
             PlayerCaptionOverlay(graph.player, VideoOverlayNative.showing, fill = fillScreen)
         }
     }
@@ -494,6 +497,7 @@ private fun PortraitNowPlaying(
     val queue by player.queue.collectAsState()
     val sleepMs by player.sleepTimerMs.collectAsState()
     val current = queue.currentItem
+    val captionsOnVideo = captionPlacementOnVideo(graph)
 
     // Everything under the video scrolls as one list; once the meta/seek/transport block (item 0)
     // scrolls away, those controls re-appear overlaid on the video and the queue header pins.
@@ -546,13 +550,13 @@ private fun PortraitNowPlaying(
                 }
                 status.error?.let { PlaybackErrorText(player, it, VideoOverlayNative.showing) }
                 val overlayOn = VideoOverlayNative.showing
-                PlayerCaptionOverlay(player, overlayVisible = overlayOn)
+                if (captionsOnVideo) PlayerCaptionOverlay(player, overlayVisible = overlayOn)
                 if (!overlayOn) {
                     Row(
                         Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        CaptionToggle(player, offTint = Color(0xFFDCDCDC))
+                        CaptionToggle(player, graph.settings, offTint = Color(0xFFDCDCDC))
                         ActionIcon(
                             Icons.Default.Fullscreen,
                             stringResource(Res.string.cd_fullscreen),
@@ -591,7 +595,7 @@ private fun PortraitNowPlaying(
                     }
                     SeekBar(player, progress)
                     TransportRow(coordinator, status.playWhenReady)
-                    CaptionScript(player)
+                    if (!captionsOnVideo) CaptionScript(player)
                 }
             }
             stickyHeader {
@@ -635,6 +639,7 @@ private fun LandscapeNowPlaying(
     val queue by player.queue.collectAsState()
     val sleepMs by player.sleepTimerMs.collectAsState()
     val current = queue.currentItem
+    val captionsOnVideo = captionPlacementOnVideo(graph)
     SideEffect { VideoOverlayNative.armed = true }
     LaunchedEffect(Unit) { VideoOverlayNative.show() }
 
@@ -659,7 +664,7 @@ private fun LandscapeNowPlaying(
                         VideoOverlayControls(coordinator, status, progress, current, onToggleFullscreen = onFullscreen)
                     }
                     status.error?.let { PlaybackErrorText(player, it, VideoOverlayNative.showing) }
-                    PlayerCaptionOverlay(player, VideoOverlayNative.showing)
+                    if (captionsOnVideo) PlayerCaptionOverlay(player, VideoOverlayNative.showing)
                 }
             }
             VerticalDivider(color = DesignColors.Divider)
@@ -669,7 +674,7 @@ private fun LandscapeNowPlaying(
                     .background(DesignColors.Surface),
             ) {
                 PlayerTopBar(coordinator, sleepMs, onClose)
-                CaptionScript(player)
+                if (!captionsOnVideo) CaptionScript(player)
                 QueueHeader(coordinator, queue.currentIndex, queue.displayTotal, queue.shuffle, queue.loopMode)
                 HorizontalDivider(color = DesignColors.Divider)
                 val queueListState = rememberLazyListState()
@@ -845,7 +850,7 @@ private fun BoxScope.VideoOverlayControls(
             }
             DurationLabel(player, progress, overlayStyle)
             Box(Modifier.weight(1f))
-            CaptionToggle(player, offTint = Color(0xFFEEEEEE), iconSize = iconSize, hitSize = hitSize)
+            CaptionToggle(player, coordinator.graph.settings, offTint = Color(0xFFEEEEEE), iconSize = iconSize, hitSize = hitSize)
             if (onToggleRotationLock != null) {
                 ActionIcon(
                     if (rotationLocked) Icons.Default.ScreenLockRotation else Icons.Default.ScreenRotation,
@@ -898,6 +903,13 @@ private fun VideoOverlayHost(modifier: Modifier, content: @Composable BoxScope.(
         val scale = (minOf(maxWidth, maxHeight) / 400.dp).coerceIn(1f, 1.3f)
         CompositionLocalProvider(LocalVideoOverlayScale provides scale) { content() }
     }
+}
+
+/** True when captions are drawn on the picture. Any other stored value uses the script under it. */
+@Composable
+private fun captionPlacementOnVideo(graph: AppGraph): Boolean {
+    val placement by remember(graph) { graph.settings.flow(AppSettings.captionPlacement) }.collectAsState()
+    return placement == AppSettings.CAPTION_PLACEMENT_VIDEO
 }
 
 /**
@@ -953,9 +965,17 @@ private fun BoxScope.PlayerCaptionOverlay(
  * line under it; picking either again clears that role. Off hides them.
  */
 @Composable
-private fun CaptionToggle(player: io.ymusic.player.Player, offTint: Color, iconSize: Dp = 24.dp, hitSize: Dp = 40.dp) {
+private fun CaptionToggle(
+    player: io.ymusic.player.Player,
+    settings: io.ymusic.settings.SettingsStore,
+    offTint: Color,
+    iconSize: Dp = 24.dp,
+    hitSize: Dp = 40.dp,
+) {
     val captions by player.captions.collectAsState()
     val config by player.config.collectAsState()
+    val placement by remember(settings) { settings.flow(AppSettings.captionPlacement) }.collectAsState()
+    val scope = rememberCoroutineScope()
     if (captions.tracks.isEmpty()) return
     var open by remember { mutableStateOf(false) }
     var translateOpen by remember { mutableStateOf(false) }
@@ -1035,6 +1055,24 @@ private fun CaptionToggle(player: io.ymusic.player.Player, offTint: Color, iconS
                         trailingIcon = if (current != null) captionRoleLabel(role(current)) else null,
                     )
                 }
+                HorizontalDivider()
+                val onVideo = placement == AppSettings.CAPTION_PLACEMENT_VIDEO
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.settings_caption_on_video)) },
+                    onClick = {
+                        scope.launch { settings.put(AppSettings.captionPlacement, AppSettings.CAPTION_PLACEMENT_VIDEO) }
+                    },
+                    modifier = Modifier.menuChoice(onVideo),
+                    trailingIcon = selectedCheck(onVideo),
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.settings_caption_below)) },
+                    onClick = {
+                        scope.launch { settings.put(AppSettings.captionPlacement, AppSettings.CAPTION_PLACEMENT_BELOW) }
+                    },
+                    modifier = Modifier.menuChoice(!onVideo),
+                    trailingIcon = selectedCheck(!onVideo),
+                )
             }
         }
         // ~150 languages: a lazy list, so opening it does not compose every row.

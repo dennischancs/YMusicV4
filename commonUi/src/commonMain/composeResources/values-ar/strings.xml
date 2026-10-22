@@ -348,6 +348,10 @@
     <string name="settings_audio_focus_apps">الإيقاف المؤقت عند تشغيل تطبيقات أخرى للصوت</string>
     <string name="settings_sponsor_block">مانع الإعلانات</string>
     <string name="settings_sponsor_block_hint">تخطي مقاطع الرعاية في فيديوهات يوتيوب تلقائيًا. يمكن إيقافه لفيديو من قيد التشغيل.</string>
+    <string name="settings_caption_placement">موضع الترجمة</string>
+    <string name="settings_caption_placement_hint">على الفيديو، أو في القائمة أسفله. ملء الشاشة يعرضها على الفيديو دائمًا.</string>
+    <string name="settings_caption_on_video">على الفيديو</string>
+    <string name="settings_caption_below">أسفل الفيديو</string>
     <string name="sponsor_block_included">حجب الإعلانات المموَّلة لهذا الفيديو</string>
     <string name="sponsor_block_excluded">عرض الإعلانات المموَّلة لهذا الفيديو</string>
     <string name="settings_sound">الصوت</string>

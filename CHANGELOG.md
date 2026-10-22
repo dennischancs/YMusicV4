@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### IMPROVED
+- Captions are either on the video or in the list under it. Choose in Settings, or in the CC menu. Fullscreen still shows them on the video.
+
+
 ## 4.0.11
 
 ### NEW
