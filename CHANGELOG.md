@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.11
+
+### NEW
+- Captions: a scrollable script between the player and the queue. The line at the playhead stays in the middle; tap a line to jump there. CC can keep a main language and a smaller second line ([5b21775e2](https://github.com/dennischancs/YMusicV4/commit/5b21775e2ce0df4186a76af5110493945afaaf89), [a44c1791f](https://github.com/dennischancs/YMusicV4/commit/a44c1791f1d1eb05491c6821b65af8f64ddc4445))
+- Share a video or song from Now Playing, the queue, Discover, Library and Downloads ([0baf45f64](https://github.com/dennischancs/YMusicV4/commit/0baf45f641f4658d3e23e7123771b96157b9e4a0))
+
 ## 4.0.10
 
 ### NEW
