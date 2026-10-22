@@ -1240,11 +1240,6 @@ private fun PlayerTopBar(coordinator: PlaybackCoordinator, sleepMs: Long?, onClo
                 onSelect = { player.selectVideoQuality(it) },
             )
         }
-        val current = queue.currentItem
-        val share = rememberSharePlayable(coordinator.graph)
-        if (current != null) {
-            ActionIcon(Icons.Outlined.Share, stringResource(Res.string.cd_share), onClick = { share(current) })
-        }
         PlayerMoreMenu(coordinator)
     }
 }
