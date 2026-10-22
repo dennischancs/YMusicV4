@@ -148,11 +148,11 @@ class PlaybackCoordinator(
     }
 
     /** Play [videos] as the queue (a playlist page), starting at [startIndex]; [source] loads the rest of
-     *  the list as the queue goes. */
-    fun playAll(videos: List<YtFeedItem>, startIndex: Int = 0, shuffle: Boolean = false, source: QueueSource? = null) {
+     *  the list as the queue goes. [shuffle] null keeps the user's shuffle mode. */
+    fun playAll(videos: List<YtFeedItem>, startIndex: Int = 0, shuffle: Boolean? = null, source: QueueSource? = null) {
         val playable = videos.filter { it.kind == YtFeedItem.KIND_VIDEO }
         if (playable.isEmpty()) return
-        player.setShuffle(shuffle)
+        shuffle?.let(player::setShuffle)
         player.setQueue(
             playable.map { it.toYtMedia() },
             playIndex = startIndex.coerceIn(0, playable.size - 1),
@@ -160,8 +160,9 @@ class PlaybackCoordinator(
         )
     }
 
-    /** Play local library [songs] as the queue, starting at [index]. */
-    fun playLocal(songs: List<MediaStoreItem>, index: Int) {
+    /** Play local library [songs] as the queue, starting at [index]. [shuffle] null keeps the user's shuffle mode. */
+    fun playLocal(songs: List<MediaStoreItem>, index: Int, shuffle: Boolean? = null) {
+        shuffle?.let(player::setShuffle)
         player.setQueue(songs.map { it.toLocalMedia() }, playIndex = index)
     }
 

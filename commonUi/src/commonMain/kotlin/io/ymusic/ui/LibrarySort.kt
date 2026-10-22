@@ -1,6 +1,5 @@
 package io.ymusic.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -18,7 +17,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,8 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.ymusic.settings.AppSettings
 import io.ymusic.settings.SettingsStore
 import io.ymusic.settings.flow
@@ -79,14 +77,20 @@ internal fun rememberSortState(id: String, settings: SettingsStore): SortState {
     return state
 }
 
-/** A full-width row that right-aligns the [SortControl] — used by tabs where sort is the only
- *  toolbar. The Folders tab instead drops [SortControl] into its scan row. */
+/** A full-width row that right-aligns the [SortControl], with optional [leading] actions on the
+ *  left. The Folders tab instead drops [SortControl] into its scan row. */
 @Composable
-internal fun SortBar(labels: List<StringResource>, state: SortState, modifier: Modifier = Modifier) {
+internal fun SortBar(
+    labels: List<StringResource>,
+    state: SortState,
+    modifier: Modifier = Modifier,
+    leading: (@Composable () -> Unit)? = null,
+) {
     Row(
         modifier.fillMaxWidth().height(LibrarySubToolbarHeight).padding(start = 16.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        leading?.invoke()
         Spacer(Modifier.weight(1f))
         SortControl(labels, state)
     }
@@ -99,19 +103,21 @@ internal fun SortControl(labels: List<StringResource>, state: SortState) {
     var open by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box {
-            Row(
-                Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .clickable { open = true }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Sort, stringResource(Res.string.cd_sort), Modifier.size(16.dp), tint = DesignColors.InkSoft)
-                Text(
-                    stringResource(labels.getOrElse(state.index) { labels.first() }),
-                    style = TextStyle(fontSize = 12.5.sp, color = DesignColors.Ink),
-                )
+            ChipTapArea({ open = true }) { indication ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .then(indication)
+                        .chipPadding(leadingIcon = true),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Sort, stringResource(Res.string.cd_sort), Modifier.size(16.dp), tint = DesignColors.InkSoft)
+                    Text(
+                        stringResource(labels.getOrElse(state.index) { labels.first() }),
+                        style = TextStyle(fontSize = ChipTextSize, fontWeight = FontWeight.Medium, color = DesignColors.Ink),
+                    )
+                }
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 labels.forEachIndexed { i, label ->
@@ -133,13 +139,10 @@ internal fun SortControl(labels: List<StringResource>, state: SortState) {
                 }
             }
         }
-        IconButton(onClick = { state.descending = !state.descending }, modifier = Modifier.size(32.dp)) {
-            Icon(
-                if (state.descending) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
-                stringResource(if (state.descending) Res.string.cd_sort_descending else Res.string.cd_sort_ascending),
-                Modifier.size(17.dp),
-                tint = DesignColors.InkSoft,
-            )
-        }
+        ActionIcon(
+            if (state.descending) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+            stringResource(if (state.descending) Res.string.cd_sort_descending else Res.string.cd_sort_ascending),
+            tint = DesignColors.InkSoft,
+        ) { state.descending = !state.descending }
     }
 }
