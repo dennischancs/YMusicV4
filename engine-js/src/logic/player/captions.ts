@@ -437,26 +437,147 @@ function cueRows(text: string): string {
   return rows.join("\n");
 }
 
-/* A secondary cue belongs to the one primary cue that contains its midpoint. */
-function altFor(cue: Cue): string {
-  if (!altCues.length) return "";
-  const start = cue.startMs;
-  const end = cue.startMs + cue.durationMs;
-  const parts: string[] = [];
-  for (let i = 0; i < altCues.length; i++) {
-    const alt = altCues[i]!;
-    const mid = alt.startMs + alt.durationMs / 2;
-    if (mid < start || mid >= end) continue;
-    const text = cueRows(fullText(alt))
-      .replace(/\n/g, " ")
-      .replace(/[ \t]+/g, " ")
-      .trim();
-    if (text.length) parts.push(text);
+type Addition = { startMs: number; text: string };
+type Core = { text: string; at: number[] };
+
+function cuePlain(cue: Cue): string {
+  return cueRows(fullText(cue))
+    .replace(/\n/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
+function isBreak(code: number): boolean {
+  if (code <= 32) return true;
+  if (code >= 33 && code <= 47) return true;
+  if (code >= 58 && code <= 64) return true;
+  if (code >= 91 && code <= 96) return true;
+  if (code >= 123 && code <= 126) return true;
+  if (code >= 0x3000 && code <= 0x303f) return true;
+  if (code >= 0xff00 && code <= 0xff0f) return true;
+  if (code >= 0xff1a && code <= 0xff20) return true;
+  if (code >= 0xff3b && code <= 0xff40) return true;
+  if (code >= 0xff5b && code <= 0xff65) return true;
+  return code === 0x00b7 || code === 0x2013 || code === 0x2014 || code === 0x2026;
+}
+
+function isCjk(code: number): boolean {
+  return (
+    (code >= 0x3400 && code <= 0x9fff) ||
+    (code >= 0x3040 && code <= 0x30ff) ||
+    (code >= 0xac00 && code <= 0xd7af) ||
+    (code >= 0xf900 && code <= 0xfaff)
+  );
+}
+
+function coreOf(s: string): Core {
+  let text = "";
+  const at: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    if (isBreak(s.charCodeAt(i))) continue;
+    text += s.charAt(i);
+    at.push(i);
   }
-  return parts.join(" · ");
+  return { text: text, at: at };
+}
+
+function boundaryBefore(s: string, index: number): boolean {
+  if (index <= 0) return true;
+  return isBreak(s.charCodeAt(index - 1));
+}
+
+function boundaryAfter(s: string, index: number): boolean {
+  if (index >= s.length) return true;
+  return isBreak(s.charCodeAt(index));
+}
+
+/* [k] is a run of CJK, or a whole word on both sides, not a fragment like "am" inside "amazing". */
+function overlapOk(prev: Core, next: Core, prevText: string, nextText: string, k: number): boolean {
+  let cjk = true;
+  for (let i = 0; i < k; i++) {
+    if (!isCjk(next.text.charCodeAt(i))) cjk = false;
+  }
+  if (cjk) return k >= 2;
+  const prevOrigin = prev.at[prev.text.length - k]!;
+  const nextEnd = next.at[k - 1]! + 1;
+  return boundaryBefore(prevText, prevOrigin) && boundaryAfter(nextText, nextEnd);
+}
+
+/* How many leading chars of [next] repeat the end of [prev]. 0 means keep [next] whole. */
+function repeatedPrefix(prev: string, next: string): number {
+  const p = coreOf(prev);
+  const n = coreOf(next);
+  const max = Math.min(p.text.length, n.text.length);
+  let k = 0;
+  for (let len = max; len >= 1; len--) {
+    if (p.text.slice(p.text.length - len) !== n.text.slice(0, len)) continue;
+    if (!overlapOk(p, n, prev, next, len)) continue;
+    k = len;
+    break;
+  }
+  if (k === 0) return 0;
+  let cut = n.at[k - 1]! + 1;
+  while (cut < next.length && isBreak(next.charCodeAt(cut))) cut++;
+  return cut;
+}
+
+/* Timedtext windows repeat the words still on screen. Keep the new tail. */
+function novelAgainst(prev: string, next: string): string {
+  if (!next.length || next === prev) return "";
+  if (!prev.length) return next;
+  const cut = repeatedPrefix(prev, next);
+  if (cut > 0) return cut >= next.length ? "" : next.slice(cut);
+  return next;
+}
+
+function rollingAdditions(list: Cue[]): Addition[] {
+  const ordered = list.slice();
+  ordered.sort(function (a, b) {
+    return a.startMs - b.startMs;
+  });
+  const out: Addition[] = [];
+  let prev = "";
+  let prevEnd = -1;
+  for (let i = 0; i < ordered.length; i++) {
+    const cue = ordered[i]!;
+    if (prevEnd >= 0 && cue.startMs - prevEnd > 1500) prev = "";
+    const full = cuePlain(cue);
+    const text = novelAgainst(prev, full);
+    if (full.length) {
+      prev = full;
+      prevEnd = cue.startMs + cue.durationMs;
+    }
+    if (text.trim().length) out.push({ startMs: cue.startMs, text: text });
+  }
+  return out;
+}
+
+function joinAlt(base: string, add: string): string {
+  const extra = add.trim();
+  if (!extra.length) return base;
+  if (!base.length) return extra;
+  const left = base.charCodeAt(base.length - 1);
+  const right = extra.charCodeAt(0);
+  if (isCjk(right) && (isCjk(left) || isBreak(left))) return base + extra;
+  if (isBreak(right) || (isBreak(left) && left <= 32)) return base + extra;
+  return base + " " + extra;
+}
+
+/* An addition belongs to the primary line already on screen when it appears, including a short gap before the next line. */
+function altTexts(list: Cue[], adds: Addition[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < list.length; i++) out.push("");
+  let i = 0;
+  for (let a = 0; a < adds.length; a++) {
+    const t = adds[a]!.startMs;
+    while (i + 1 < list.length && list[i + 1]!.startMs <= t) i++;
+    out[i] = joinAlt(out[i]!, adds[a]!.text);
+  }
+  return out;
 }
 
 function transcriptRows(): Record<string, unknown>[] {
+  const alts = altTexts(cues, rollingAdditions(altCues));
   const rows: Record<string, unknown>[] = [];
   for (let i = 0; i < cues.length; i++) {
     const cue = cues[i]!;
@@ -470,7 +591,7 @@ function transcriptRows(): Record<string, unknown>[] {
       "endMs": endMs,
       "text": text,
     };
-    const alt = altFor(cue);
+    const alt = alts[i] ?? "";
     if (alt.length) row["alt"] = alt;
     rows.push(row);
   }
