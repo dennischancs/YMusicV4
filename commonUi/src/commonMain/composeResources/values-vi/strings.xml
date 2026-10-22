@@ -347,6 +347,11 @@
     <string name="settings_caption_placement_hint">Trên video, hoặc trong danh sách bên dưới. Toàn màn hình vẫn hiện trên video.</string>
     <string name="settings_caption_on_video">Trên video</string>
     <string name="settings_caption_below">Dưới video</string>
+    <string name="settings_caption_follow">Về câu đang phát</string>
+    <string name="settings_caption_follow_hint">Sau khi cuộn danh sách phụ đề, chờ từng này rồi nhảy về câu đang phát.</string>
+    <string name="settings_caption_follow_seconds">%1$d giây</string>
+    <string name="settings_caption_follow_less">Chờ ngắn hơn</string>
+    <string name="settings_caption_follow_more">Chờ lâu hơn</string>
     <string name="sponsor_block_included">Chặn quảng cáo trong video này</string>
     <string name="sponsor_block_excluded">Bỏ chặn quảng cáo trong video này</string>
     <string name="settings_sound">Âm thanh</string>

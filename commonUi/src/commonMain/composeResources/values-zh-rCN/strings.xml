@@ -375,6 +375,11 @@
     <string name="settings_caption_placement_hint">显示在画面上，或显示在视频下方的字幕列表。全屏时仍显示在画面上。</string>
     <string name="settings_caption_on_video">显示在视频上</string>
     <string name="settings_caption_below">显示在视频下方</string>
+    <string name="settings_caption_follow">回到当前字幕</string>
+    <string name="settings_caption_follow_hint">滑动字幕列表后，停住这么久，再跳回正在播放的那一句。</string>
+    <string name="settings_caption_follow_seconds">%1$d 秒</string>
+    <string name="settings_caption_follow_less">缩短等待</string>
+    <string name="settings_caption_follow_more">延长等待</string>
     <string name="sponsor_block_included">已为此视频启用 SponsorBlock</string>
     <string name="sponsor_block_excluded">已为此视频停用 SponsorBlock</string>
     <string name="settings_sound">声音</string>

@@ -443,6 +443,11 @@
     <string name="settings_caption_placement_hint">On the video, or in the list under it. Fullscreen still shows them on the video.</string>
     <string name="settings_caption_on_video">On the video</string>
     <string name="settings_caption_below">Under the video</string>
+    <string name="settings_caption_follow">Return to the current line</string>
+    <string name="settings_caption_follow_hint">After you scroll the caption list, wait this long, then jump back to the line that is playing.</string>
+    <string name="settings_caption_follow_seconds">%1$d s</string>
+    <string name="settings_caption_follow_less">Shorter wait</string>
+    <string name="settings_caption_follow_more">Longer wait</string>
     <string name="sponsor_block_included">SponsorBlock enabled for this video</string>
     <string name="sponsor_block_excluded">SponsorBlock disabled for this video</string>
     <string name="settings_sound">Sound</string>

@@ -498,6 +498,7 @@ private fun PortraitNowPlaying(
     val sleepMs by player.sleepTimerMs.collectAsState()
     val current = queue.currentItem
     val captionsOnVideo = captionPlacementOnVideo(graph)
+    val captionFollowSeconds = captionFollowSeconds(graph)
 
     // Everything under the video scrolls as one list; once the meta/seek/transport block (item 0)
     // scrolls away, those controls re-appear overlaid on the video and the queue header pins.
@@ -595,7 +596,7 @@ private fun PortraitNowPlaying(
                     }
                     SeekBar(player, progress)
                     TransportRow(coordinator, status.playWhenReady)
-                    if (!captionsOnVideo) CaptionScript(player)
+                    if (!captionsOnVideo) CaptionScript(player, captionFollowSeconds)
                 }
             }
             stickyHeader {
@@ -640,6 +641,7 @@ private fun LandscapeNowPlaying(
     val sleepMs by player.sleepTimerMs.collectAsState()
     val current = queue.currentItem
     val captionsOnVideo = captionPlacementOnVideo(graph)
+    val captionFollowSeconds = captionFollowSeconds(graph)
     SideEffect { VideoOverlayNative.armed = true }
     LaunchedEffect(Unit) { VideoOverlayNative.show() }
 
@@ -674,7 +676,7 @@ private fun LandscapeNowPlaying(
                     .background(DesignColors.Surface),
             ) {
                 PlayerTopBar(coordinator, sleepMs, onClose)
-                if (!captionsOnVideo) CaptionScript(player)
+                if (!captionsOnVideo) CaptionScript(player, captionFollowSeconds)
                 QueueHeader(coordinator, queue.currentIndex, queue.displayTotal, queue.shuffle, queue.loopMode)
                 HorizontalDivider(color = DesignColors.Divider)
                 val queueListState = rememberLazyListState()
@@ -910,6 +912,12 @@ private fun VideoOverlayHost(modifier: Modifier, content: @Composable BoxScope.(
 private fun captionPlacementOnVideo(graph: AppGraph): Boolean {
     val placement by remember(graph) { graph.settings.flow(AppSettings.captionPlacement) }.collectAsState()
     return placement == AppSettings.CAPTION_PLACEMENT_VIDEO
+}
+
+@Composable
+private fun captionFollowSeconds(graph: AppGraph): Int {
+    val seconds by remember(graph) { graph.settings.flow(AppSettings.captionFollowSeconds) }.collectAsState()
+    return seconds.coerceIn(AppSettings.CAPTION_FOLLOW_SECONDS_MIN, AppSettings.CAPTION_FOLLOW_SECONDS_MAX)
 }
 
 /**

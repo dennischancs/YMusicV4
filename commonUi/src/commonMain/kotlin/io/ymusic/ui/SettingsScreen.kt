@@ -9,15 +9,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +41,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,6 +61,11 @@ import io.ymusic.ui.resources.settings_audio_focus_calls
 import io.ymusic.ui.resources.settings_auto_update
 import io.ymusic.ui.resources.settings_auto_update_hint
 import io.ymusic.ui.resources.settings_caption_below
+import io.ymusic.ui.resources.settings_caption_follow
+import io.ymusic.ui.resources.settings_caption_follow_hint
+import io.ymusic.ui.resources.settings_caption_follow_less
+import io.ymusic.ui.resources.settings_caption_follow_more
+import io.ymusic.ui.resources.settings_caption_follow_seconds
 import io.ymusic.ui.resources.settings_caption_on_video
 import io.ymusic.ui.resources.settings_caption_placement
 import io.ymusic.ui.resources.settings_caption_placement_hint
@@ -192,6 +204,7 @@ fun SettingsScreen(graph: AppGraph, signedIn: Boolean = false, onLogin: () -> Un
                 Res.string.settings_sponsor_block_hint,
             )
             CaptionPlacementRow(graph)
+            CaptionFollowRow(graph)
             PlayerCacheRow(graph)
         }
         if (graph.downloads != null) {
@@ -327,6 +340,54 @@ private fun CaptionPlacementRow(graph: AppGraph) {
                         scope.launch { graph.settings.put(AppSettings.captionPlacement, value) }
                     },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CaptionFollowRow(graph: AppGraph) {
+    val scope = rememberCoroutineScope()
+    val stored by remember(graph) { graph.settings.flow(AppSettings.captionFollowSeconds) }.collectAsState()
+    val seconds = stored.coerceIn(AppSettings.CAPTION_FOLLOW_SECONDS_MIN, AppSettings.CAPTION_FOLLOW_SECONDS_MAX)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = DesignSpacing.SettingsRowHorizontal, vertical = DesignSpacing.SettingsRowVertical),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(Res.string.settings_caption_follow),
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = DesignColors.Ink),
+            )
+            Text(
+                stringResource(Res.string.settings_caption_follow_hint),
+                style = TextStyle(fontSize = 12.sp, color = DesignColors.InkSecondary),
+                modifier = Modifier.padding(top = DesignSpacing.Space2),
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = { scope.launch { graph.settings.put(AppSettings.captionFollowSeconds, seconds - 1) } },
+                enabled = seconds > AppSettings.CAPTION_FOLLOW_SECONDS_MIN,
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Icons.Default.Remove, stringResource(Res.string.settings_caption_follow_less))
+            }
+            Text(
+                stringResource(Res.string.settings_caption_follow_seconds, seconds),
+                style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = DesignColors.Ink),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(72.dp),
+            )
+            IconButton(
+                onClick = { scope.launch { graph.settings.put(AppSettings.captionFollowSeconds, seconds + 1) } },
+                enabled = seconds < AppSettings.CAPTION_FOLLOW_SECONDS_MAX,
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Icons.Default.Add, stringResource(Res.string.settings_caption_follow_more))
             }
         }
     }

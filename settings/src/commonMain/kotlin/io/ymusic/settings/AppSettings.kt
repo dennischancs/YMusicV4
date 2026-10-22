@@ -185,6 +185,14 @@ object AppSettings {
     const val CAPTION_PLACEMENT_VIDEO = "video"
 
     /**
+     * How long the caption script stays where the user scrolled it before returning to the
+     * playhead. A tap on a line seeks there immediately and starts following again.
+     */
+    val captionFollowSeconds = IntSetting("playback.captionFollowSeconds", 3)
+    const val CAPTION_FOLLOW_SECONDS_MIN = 1
+    const val CAPTION_FOLLOW_SECONDS_MAX = 30
+
+    /**
      * Overlay pictures-per-second on the Now Playing / fullscreen video hole.
      * Off by default. Sampling runs only while that hole is composed, the window is focused,
      * and playWhenReady is true.

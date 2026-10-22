@@ -8,6 +8,7 @@
 
 ### IMPROVED
 - Captions are either on the video or in the list under it. Choose in Settings, or in the CC menu. Fullscreen still shows them on the video.
+- Scrolling the caption list leaves it there. After it stays still it returns to the line that is playing. The wait defaults to 3 seconds and can be changed in Settings.
 
 ## 4.0.10
 
