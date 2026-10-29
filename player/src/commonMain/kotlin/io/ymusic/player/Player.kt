@@ -30,6 +30,8 @@ interface Player {
     val videoQuality: StateFlow<VideoQualityState>
     val captions: StateFlow<CaptionState>
     val captionLines: StateFlow<List<CaptionLine>>
+    /** Full timed script of the active engine; empty when it only has paint-on lines. */
+    val captionCues: StateFlow<List<CaptionCue>>
     val audioTracks: StateFlow<AudioTrackState>
 
     /** The active engine's [AudioSessionSource.audioSessionId]; 0 when it has none. */
@@ -155,6 +157,9 @@ interface Player {
 
     /** Sets [PlaybackConfig.preferCaptionLanguage] (a language code, or null for undetermined). */
     fun selectCaption(languageCode: String?)
+
+    /** Sets [PlaybackConfig.preferSecondaryCaptionLanguage] (a language code, or null for none). */
+    fun selectSecondaryCaption(languageCode: String?)
 
     /** Sets [PlaybackConfig.captionVisible]. */
     fun setCaptionVisible(visible: Boolean)

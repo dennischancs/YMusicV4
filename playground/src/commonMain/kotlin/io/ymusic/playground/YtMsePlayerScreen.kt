@@ -315,7 +315,7 @@ fun YtMsePlayerScreen(modifier: Modifier = Modifier) {
         val incoming = Channel<List<CaptionLine>>(Channel.CONFLATED)
         val job = launch(Dispatchers.Default) {
             try {
-                s.player.collectCaptionLines({ incoming.trySend(it) }, s.log)
+                s.player.collectCaptionLines({ incoming.trySend(it.lines) }, s.log)
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {

@@ -12,6 +12,7 @@ import io.ymusic.mse.MseVideoSurface
 import io.ymusic.player.AudioSessionSource
 import io.ymusic.player.AudioTrack
 import io.ymusic.player.AudioTrackState
+import io.ymusic.player.CaptionCue
 import io.ymusic.player.CaptionLine
 import io.ymusic.player.CaptionState
 import io.ymusic.player.CaptionTrack
@@ -120,6 +121,9 @@ class MsePlayer internal constructor(
 
     private val _captionLines = MutableStateFlow<List<CaptionLine>>(emptyList())
     override val captionLines: StateFlow<List<CaptionLine>> = _captionLines.asStateFlow()
+
+    private val _captionCues = MutableStateFlow<List<CaptionCue>>(emptyList())
+    override val captionCues: StateFlow<List<CaptionCue>> = _captionCues.asStateFlow()
 
     private val _audioTracks = MutableStateFlow(AudioTrackState.DEFAULT)
     override val audioTracks: StateFlow<AudioTrackState> = _audioTracks.asStateFlow()
@@ -547,6 +551,7 @@ class MsePlayer internal constructor(
         loadTrace = null
         _audioSessionId.value = 0
         _captionLines.value = emptyList()
+        _captionCues.value = emptyList()
         val oldSession = session ?: return
         session = null
         oldSession.commands.close()
@@ -619,11 +624,15 @@ class MsePlayer internal constructor(
     private fun captionChanged(previous: PlaybackConfig?, config: PlaybackConfig): Boolean =
         previous == null ||
             config.captionVisible != previous.captionVisible ||
-            config.preferCaptionLanguage != previous.preferCaptionLanguage
+            config.preferCaptionLanguage != previous.preferCaptionLanguage ||
+            config.preferSecondaryCaptionLanguage != previous.preferSecondaryCaptionLanguage
 
     private suspend fun applyCaptionConfig(enginePlayer: DynamicEnginePlayer, config: PlaybackConfig) {
         val preferred = config.preferCaptionLanguage.first.takeIf { it != PlaybackConfig.UNDETERMINED_LANGUAGE }
-        enginePlayer.setCaption(preferred, log, visible = config.captionVisible)
+        val secondary = config.preferSecondaryCaptionLanguage.first
+            .takeIf { it != PlaybackConfig.UNDETERMINED_LANGUAGE && it != preferred }
+        _captionCues.value = emptyList()
+        enginePlayer.setCaption(preferred, log, visible = config.captionVisible, secondaryVssId = secondary)
         syncCaptionSession(enginePlayer, config.captionVisible)
     }
 
@@ -633,19 +642,24 @@ class MsePlayer internal constructor(
             activeSession.captionJob?.cancel()
             activeSession.captionJob = null
             _captionLines.value = emptyList()
+            _captionCues.value = emptyList()
             return
         }
         if (activeSession.captionJob?.isActive == true) return
         activeSession.captionJob = activeSession.scope.launch {
             try {
-                enginePlayer.collectCaptionLines({ rows ->
-                    _captionLines.value = rows.map { CaptionLine(it.id, it.text) }
+                enginePlayer.collectCaptionLines({ stream ->
+                    _captionLines.value = stream.lines.map { CaptionLine(it.id, it.text) }
+                    stream.cues?.let { rows ->
+                        _captionCues.value = rows.map { CaptionCue(it.id, it.startMs, it.endMs, it.text, it.alt) }
+                    }
                 }, log)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
                 log?.log(Logger.Level.WARN, "mse caption stream failed", error)
                 _captionLines.value = emptyList()
+                _captionCues.value = emptyList()
             }
         }
     }

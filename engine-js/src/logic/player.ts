@@ -237,8 +237,12 @@ onAccept(
   commandHandler(async (src, out) => {
     const a = await src.readJsonObject();
     const vss = a["vssId"] == null || a["vssId"] === "" ? null : String(a["vssId"]);
+    const secondary =
+      a["secondaryVssId"] == null || a["secondaryVssId"] === ""
+        ? null
+        : String(a["secondaryVssId"]);
     const visible = a["visible"] == null ? vss != null : a["visible"] === true;
-    setCaptionPreference(visible, vss);
+    setCaptionPreference(visible, vss, secondary);
     const p = out.writeObjectAsJson({ "ok": true, "vssId": vss, "visible": visible });
     if (p) await p;
   }),

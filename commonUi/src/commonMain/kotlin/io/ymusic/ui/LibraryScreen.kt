@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
+import io.ymusic.dynamicengine.yt.YtFeedItem
 import io.ymusic.mediastore.BetterMediaStore
 import io.ymusic.mediastore.model.MediaStoreBucket
 import io.ymusic.mediastore.model.MediaStoreItem
@@ -96,6 +97,7 @@ import io.ymusic.ui.resources.Res
 import io.ymusic.ui.resources.add_to_playlist_new
 import io.ymusic.ui.resources.cd_add_to_playlist
 import io.ymusic.ui.resources.cd_back
+import io.ymusic.ui.resources.cd_share
 import io.ymusic.ui.resources.delete_from_disk_confirm
 import io.ymusic.ui.resources.delete_from_disk_message
 import io.ymusic.ui.resources.delete_from_disk_title
@@ -1513,7 +1515,8 @@ internal fun SongRow(song: MediaStoreItem, coordinator: PlaybackCoordinator? = n
 }
 
 /** The local song overflow menu (the legacy app's song menu): play, queue, playlist, go to artist /
- *  album, reveal in its folder and remove from disk — each shown only where its host provides it. */
+ *  album, reveal in its folder and remove from disk — each shown only where its host provides it.
+ *  A song that came from YouTube also shares that video's app link. */
 @Composable
 private fun songActions(song: MediaStoreItem, coordinator: PlaybackCoordinator): ItemActions {
     val play = stringResource(Res.string.menu_play)
@@ -1524,6 +1527,8 @@ private fun songActions(song: MediaStoreItem, coordinator: PlaybackCoordinator):
     val removeFromTopTracks = stringResource(Res.string.menu_remove)
     val showInFolder = stringResource(Res.string.menu_show_in_folder)
     val removeFromDisk = stringResource(Res.string.menu_remove_from_disk)
+    val shareLabel = stringResource(Res.string.cd_share)
+    val shareYoutube = LocalShareYoutube.current
     val reveal = LocalLibraryReveal.current
     val requestDelete = LocalLibraryDelete.current
     val addToPlaylist = LocalAddToPlaylist.current
@@ -1537,6 +1542,10 @@ private fun songActions(song: MediaStoreItem, coordinator: PlaybackCoordinator):
             add(play to { coordinator.playLocalSingle(song) })
             add(next to { coordinator.queueLocalNext(song) })
             add(last to { coordinator.queueLocalLast(song) })
+            val videoId = song.youtubeVid
+            if (shareYoutube != null && videoId != null) {
+                add(shareLabel to { shareYoutube(YtFeedItem.KIND_VIDEO, videoId) })
+            }
             if (addToPlaylist != null) add(addToPlaylistLabel to { addToPlaylist(song) })
             if (removeFromPlaylist != null) add(removeFromPlaylistLabel to { removeFromPlaylist(song) })
             if (removeFromHistory != null) add(removeFromTopTracks to { removeFromHistory(song) })

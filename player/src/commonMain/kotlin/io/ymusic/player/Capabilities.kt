@@ -77,6 +77,15 @@ data class CaptionTrack(
 
 data class CaptionLine(val id: Int, val text: String)
 
+/** One timed caption row. [alt] is the secondary language, empty when only one language is on. */
+data class CaptionCue(
+    val id: Int,
+    val startMs: Long,
+    val endMs: Long,
+    val text: String,
+    val alt: String = "",
+)
+
 /** Timed cues injected into a local file player (YouTube ASR for a downloaded mp4, sidecar, …). */
 data class InjectedCaptionCue(val startSec: Double, val endSec: Double, val text: String)
 
@@ -99,15 +108,20 @@ data class CaptionState(
 
 /**
  * An engine that reports its available caption tracks. Selection/visibility is via
- * [PlaybackConfig.preferCaptionLanguage] and [PlaybackConfig.captionVisible].
+ * [PlaybackConfig.preferCaptionLanguage], [PlaybackConfig.preferSecondaryCaptionLanguage], and
+ * [PlaybackConfig.captionVisible].
  */
 interface CaptionSelectable {
     val captions: StateFlow<CaptionState>
 }
 
-/** Live paint-on lines for a Compose overlay. Empty when captions are off or the engine has none. */
+/**
+ * Live paint-on lines for the picture overlay, plus the full timed script ([captionCues]) when the
+ * engine has one. Both are empty when captions are off or the engine has none.
+ */
 interface CaptionRenderable {
     val captionLines: StateFlow<List<CaptionLine>>
+    val captionCues: StateFlow<List<CaptionCue>>
 }
 
 // --- Audio tracks (multi-language YouTube audio) ---

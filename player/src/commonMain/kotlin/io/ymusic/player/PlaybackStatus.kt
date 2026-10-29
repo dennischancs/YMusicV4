@@ -76,6 +76,8 @@ data class PlaybackConfig(
     val inAppAudioFx: Boolean = true,
     val loop: Boolean = false,
     val preferCaptionLanguage: Pair<String, Long> = UNDETERMINED_LANGUAGE to 0L,
+    /** Second caption language, drawn under the primary line. [UNDETERMINED_LANGUAGE] means one language. */
+    val preferSecondaryCaptionLanguage: Pair<String, Long> = UNDETERMINED_LANGUAGE to 0L,
     val scaleMode: ScaleMode = ScaleMode.CONTAIN,
 ) {
     init {

@@ -164,6 +164,8 @@
     <string name="yt_playlist_removed_video">Removed %1$s from the playlist</string>
     <string name="cd_add_to_playlist">Add to playlist</string>
     <string name="cd_share">Share</string>
+    <string name="share_copied">Copied to the clipboard</string>
+    <string name="share_failed">Unable to share</string>
     <string name="cd_music_video">Music</string>
     <string name="cd_album">Album</string>
 
@@ -239,6 +241,8 @@
     <string name="video_quality_auto">Auto</string>
     <string name="captions_off">CC off</string>
     <string name="captions_auto_translate">Auto-translate</string>
+    <string name="captions_primary">Main</string>
+    <string name="captions_secondary">Sub</string>
     <string name="up_next">Up next</string>
     <string name="queue_load_more">Load more</string>
     <string name="queue_loading_more">Loading more…</string>
