@@ -101,7 +101,7 @@ object FileAvNative {
 
     /**
      * Overlay NSView mouse. [id] is `java.awt.event.MouseEvent` id; x/y are Java screen
-     * (top-left). Desktop shell toggles chrome on mouse-up; do not copy events into Compose.
+     * (top-left). The desktop shell turns these into picture gestures; do not copy events into Compose.
      */
     @Volatile @JvmStatic
     var overlayMouse: OverlayMouse? = null

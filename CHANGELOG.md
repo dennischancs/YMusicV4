@@ -6,6 +6,9 @@
 - Captions: a scrollable script between the player and the queue. The line at the playhead stays in the middle; tap a line to jump there. CC can keep a main language and a smaller second line ([c7f010371](https://github.com/ymusic-io/YMusicV4/commit/c7f010371b54ec89eb25e31fa671316bb5fc76b4), [038a06f3e](https://github.com/ymusic-io/YMusicV4/commit/038a06f3eb88c1d1618fcb1364fc5b5532489ddb))
 - Share a video or song from Now Playing, the queue, Discover, Library and Downloads ([9801e7b58](https://github.com/ymusic-io/YMusicV4/commit/9801e7b58ae7caaa8102948086065d392758b6dc))
 
+### IMPROVED
+- Now Playing: tap the picture to play or pause, swipe right or left for the previous or next song, and hold either side to skip 10 seconds. The rewind, previous, play, next and fast-forward buttons are gone.
+
 ## 4.0.10
 
 ### NEW

@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +33,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -45,8 +43,6 @@ import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.CropFree
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -61,7 +57,6 @@ import androidx.compose.material.icons.filled.ScreenLockRotation
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.outlined.ClosedCaptionOff
 import androidx.compose.material.icons.outlined.Equalizer
 import androidx.compose.material.icons.outlined.FileDownload
@@ -154,18 +149,15 @@ import io.ymusic.ui.resources.cd_drag_to_reorder
 import io.ymusic.ui.resources.cd_exit_fullscreen
 import io.ymusic.ui.resources.cd_fill_video
 import io.ymusic.ui.resources.cd_fit_video
-import io.ymusic.ui.resources.cd_forward10
 import io.ymusic.ui.resources.cd_fullscreen
 import io.ymusic.ui.resources.cd_lock_rotation
 import io.ymusic.ui.resources.cd_more
 import io.ymusic.ui.resources.cd_next
 import io.ymusic.ui.resources.cd_pause
 import io.ymusic.ui.resources.cd_play
-import io.ymusic.ui.resources.cd_previous
 import io.ymusic.ui.resources.cd_repeat_all
 import io.ymusic.ui.resources.cd_repeat_off
 import io.ymusic.ui.resources.cd_repeat_one
-import io.ymusic.ui.resources.cd_rewind10
 import io.ymusic.ui.resources.cd_share
 import io.ymusic.ui.resources.cd_shuffle
 import io.ymusic.ui.resources.cd_unlock_rotation
@@ -207,7 +199,6 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import projectcommon.error.Playability
 import projectcommon.error.errorCode
-import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -224,7 +215,7 @@ internal fun formatMillis(ms: Long): String {
     }
 }
 
-/** True when the portrait title/seek/transport block (list item 0) has left the viewport. */
+/** True when the portrait title/seek block (list item 0) has left the viewport. */
 private fun inlineControlsOffscreen(listState: LazyListState): Boolean {
     val visible = listState.layoutInfo.visibleItemsInfo
     if (visible.isEmpty()) return false
@@ -341,7 +332,7 @@ fun MiniPlayer(
 
 /**
  * Full Now Playing (design/final/now-playing.html). Layout follows the window's orientation:
- * portrait/tablet = the top-bar · video · meta · seek · transport · queue column; landscape
+ * portrait/tablet = the top-bar · video · meta · seek · queue column; landscape
  * (width > height) = the split — video fills the left with the controls overlaid on it, and a fixed
  * right pane carries the top bar and the queue. Full screen overrides both: video only, edge to
  * edge, with the auto-hiding overlay.
@@ -457,7 +448,7 @@ private fun FullscreenVideo(graph: AppGraph, coordinator: PlaybackCoordinator, o
             fill = fillScreen,
             settings = graph.settings,
         )
-        VideoOverlayHost(Modifier.fillMaxSize()) {
+        VideoOverlayHost(player, Modifier.fillMaxSize()) {
             BufferingIndicator(status)
             AutoHidingOverlay {
                 VideoOverlayControls(
@@ -495,14 +486,14 @@ private fun PortraitNowPlaying(
     val sleepMs by player.sleepTimerMs.collectAsState()
     val current = queue.currentItem
 
-    // Everything under the video scrolls as one list; once the meta/seek/transport block (item 0)
+    // Everything under the video scrolls as one list; once the meta/seek block (item 0)
     // scrolls away, those controls re-appear overlaid on the video and the queue header pins.
     val listState = rememberLazyListState()
     val controlsOnVideo by remember {
         derivedStateOf { inlineControlsOffscreen(listState) }
     }
     // Do not onDispose armed=false here: Compose disposes Portrait after Landscape
-    // has set armed=true, which left clicks ignored (poke requires armed).
+    // has set armed=true, which left the overlay chrome stuck off.
     LaunchedEffect(listState) {
         snapshotFlow { inlineControlsOffscreen(listState) }.collect { off ->
             val becameArmed = off && !VideoOverlayNative.armed
@@ -534,7 +525,7 @@ private fun PortraitNowPlaying(
                 Modifier.fillMaxSize(),
                 settings = graph.settings,
             )
-            VideoOverlayHost(Modifier.fillMaxSize()) {
+            VideoOverlayHost(player, Modifier.fillMaxSize()) {
                 // Stay composed: remounting after scroll-up missed the next scroll-down
                 // (chrome window kept a stale content lambda).
                 BufferingIndicator(status)
@@ -590,7 +581,6 @@ private fun PortraitNowPlaying(
                         )
                     }
                     SeekBar(player, progress)
-                    TransportRow(coordinator, status.playWhenReady)
                     CaptionScript(player)
                 }
             }
@@ -651,6 +641,7 @@ private fun LandscapeNowPlaying(
                     settings = graph.settings,
                 )
                 VideoOverlayHost(
+                    player,
                     Modifier.fillMaxSize()
                         .windowInsetsPadding(WindowInsets.navigationBars),
                 ) {
@@ -728,29 +719,15 @@ private fun queuePaneWidth(windowWidth: Dp): Dp = (windowWidth * 0.3f).coerceIn(
 private val QueueLargeRowsFrom = 380.dp
 
 /**
- * Hosts video-overlay [content] with player-style auto-hide: it fades out after a few seconds of
- * playback, and a tap/click on the video toggles it. Dragging the seek bar holds it visible.
- * While paused nothing auto-hides.
+ * Shows [content] while the overlay chrome is up. Picture gestures are a sibling behind this box;
+ * a pointer input here would sit on top of the seek bar.
  */
 @Composable
 private fun BoxScope.AutoHidingOverlay(
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val armed = VideoOverlayNative.armed
-    val visible = VideoOverlayNative.visible
-    val show = armed && visible
-    if (armed) {
-        Box(
-            Modifier
-                .matchParentSize()
-                .pointerInput(Unit) {
-                    detectTapGestures { VideoOverlayNative.poke() }
-                },
-        )
-    }
-    if (show) {
-        Box(Modifier.fillMaxSize(), content = content)
-    }
+    if (!VideoOverlayNative.showing) return
+    Box(Modifier.matchParentSize(), content = content)
 }
 
 private const val OVERLAY_HIDE_DELAY_MS = 3_000L
@@ -762,7 +739,7 @@ private fun PlaybackStatus.isBufferingOrLoading(): Boolean = when (val s = state
     is PlaybackState.Error -> false
 }
 
-/** Stays on the video while overlay chrome auto-hides; transport play/pause stays tappable. */
+/** Stays on the video while overlay chrome auto-hides. */
 @Composable
 private fun BoxScope.BufferingIndicator(
     status: PlaybackStatus,
@@ -813,18 +790,6 @@ private fun BoxScope.VideoOverlayControls(
             status,
             TextStyle(fontSize = 11.sp * scale, color = Color(0xFFDADADA)),
             Modifier.padding(top = 3.dp * scale),
-        )
-    }
-
-    Box(Modifier.align(Alignment.Center)) {
-        TransportRow(
-            coordinator,
-            status.playWhenReady,
-            iconTint = Color.White,
-            playBackground = Color.Black.copy(alpha = 0.42f),
-            playForeground = Color.White,
-            playSize = 58.dp * scale,
-            scale = scale,
         )
     }
 
@@ -891,12 +856,22 @@ private val VideoControlsStrip = 72.dp
 /** How much the video overlay chrome scales: 1× up to a 400dp short side, growing with the video area to 1.3×. */
 private val LocalVideoOverlayScale = compositionLocalOf { 1f }
 
-/** The box over the video picture: sets [LocalVideoOverlayScale] from its own size for the overlay, captions and errors. */
+/** Sets [LocalVideoOverlayScale]. The gesture layer is a sibling behind [content], not its parent. */
 @Composable
-private fun VideoOverlayHost(modifier: Modifier, content: @Composable BoxScope.() -> Unit) {
+private fun VideoOverlayHost(player: Player, modifier: Modifier, content: @Composable BoxScope.() -> Unit) {
+    DisposableEffect(Unit) {
+        PictureGestureInput.enter()
+        onDispose { PictureGestureInput.exit() }
+    }
     BoxWithConstraints(modifier) {
         val scale = (minOf(maxWidth, maxHeight) / 400.dp).coerceIn(1f, 1.3f)
-        CompositionLocalProvider(LocalVideoOverlayScale provides scale) { content() }
+        CompositionLocalProvider(LocalVideoOverlayScale provides scale) {
+            Box(Modifier.fillMaxSize()) {
+                PictureGestureCatcher(player, Modifier.matchParentSize())
+                Box(Modifier.fillMaxSize(), content = content)
+                PictureGestureHintLayer(player, scale, Modifier.matchParentSize())
+            }
+        }
     }
 }
 
@@ -1550,105 +1525,10 @@ private fun SeekSlider(
     )
 }
 
-/** rewind · prev · [play circle] · next · forward. Dark-on-white by default; the video overlay
- *  passes white glyphs on a translucent play circle. */
-@Composable
-private fun TransportRow(
-    coordinator: PlaybackCoordinator,
-    playing: Boolean,
-    iconTint: Color = DesignColors.InkStrong,
-    playBackground: Color = DesignColors.InkStrong,
-    playForeground: Color = DesignColors.OnInk,
-    playSize: Dp = 64.dp,
-    scale: Float = 1f,
-) {
-    val player = coordinator.player
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        MediaLtr { TransportButtons(player, playing, iconTint, playBackground, playForeground, playSize, scale) }
-    }
-}
-
-/** [this] at an even pixel count, so nested centred boxes split their difference exactly — an odd
- *  difference rounds half a pixel down at every level. */
-@Composable
-private fun Dp.evenPx(): Dp {
-    val density = LocalDensity.current.density
-    return ((value * density / 2).roundToInt() * 2 / density).dp
-}
-
 /** Media controls stay left-to-right in RTL locales, matching the seek bar's direction of time. */
 @Composable
 private fun MediaLtr(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr, content = content)
-}
-
-@Composable
-private fun TransportButtons(
-    player: Player,
-    playing: Boolean,
-    iconTint: Color,
-    playBackground: Color,
-    playForeground: Color,
-    playSize: Dp,
-    scale: Float,
-) {
-    val iconSize = (24.dp * scale).evenPx()
-    val hitSize = (40.dp * scale).evenPx()
-    val circle = playSize.evenPx()
-    Row(
-        // SpaceEvenly inside a capped width: the gaps grow with the window (≈ the mockup's 26dp
-        // at phone width) up to the cap, instead of a fixed cluster.
-        Modifier
-            .widthIn(max = 480.dp * scale)
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ActionIcon(
-            Icons.Default.FastRewind,
-            stringResource(Res.string.cd_rewind10),
-            iconSize = iconSize,
-            hitSize = hitSize,
-            tint = iconTint,
-            onClick = { player.seekTo((player.progress.value.positionMs - 10_000).coerceAtLeast(0)) },
-        )
-        ActionIcon(
-            Icons.Default.SkipPrevious,
-            stringResource(Res.string.cd_previous),
-            iconSize = iconSize,
-            hitSize = hitSize,
-            tint = iconTint,
-            onClick = { player.skipPrev() },
-        )
-        Box(
-            Modifier.size(circle).clip(CircleShape).background(playBackground).clickable(role = Role.Button) { player.togglePlay() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                stringResource(if (playing) Res.string.cd_pause else Res.string.cd_play),
-                Modifier.size((26.dp * scale).evenPx()),
-                tint = playForeground,
-            )
-        }
-        ActionIcon(
-            Icons.Default.SkipNext,
-            stringResource(Res.string.cd_next),
-            iconSize = iconSize,
-            hitSize = hitSize,
-            tint = iconTint,
-            onClick = { player.skipNext() },
-        )
-        ActionIcon(
-            Icons.Default.FastForward,
-            stringResource(Res.string.cd_forward10),
-            iconSize = iconSize,
-            hitSize = hitSize,
-            tint = iconTint,
-            onClick = { player.seekTo(player.progress.value.positionMs + 10_000) },
-        )
-    }
 }
 
 /** "Up next" · "n / total" · [right:] repeat · shuffle. */
