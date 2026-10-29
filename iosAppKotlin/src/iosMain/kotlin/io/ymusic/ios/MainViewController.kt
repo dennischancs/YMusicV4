@@ -298,6 +298,7 @@ private suspend fun buildIosGraph(container: UIView): AppGraph {
         appVersion = appVersionName,
         appVersionName = appVersionName,
         appVersionCode = appVersionCode,
+        platformInfo = "iOS ${UIDevice.currentDevice.systemVersion}",
         runningBundles = runningBundles,
         stats = stats,
         api = api,
@@ -309,6 +310,7 @@ private suspend fun buildIosGraph(container: UIView): AppGraph {
         exportSessionCookies = { cookies.exportSessionCookies() },
         scanQrCode = { iosScanQrCode() },
         confirmDeviceOwner = { title, subtitle -> iosConfirmDeviceOwner(title, subtitle) },
+        shareText = ::iosShareText,
     ) { modifier -> IosMseVideo(mseHole, msePlayer, modifier) }
     IosPipHost.hole = mseHole
     IosPipHost.pip = graph.pip

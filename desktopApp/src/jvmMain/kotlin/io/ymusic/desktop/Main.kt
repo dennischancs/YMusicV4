@@ -116,15 +116,17 @@ import io.ymusic.settings.put
 import io.ymusic.telemetry.SentryLogger
 import io.ymusic.telemetry.applyYMusicTelemetry
 import io.ymusic.telemetry.bindCrashReporting
+import io.ymusic.telemetry.captureFeedbackReport
 import io.ymusic.telemetry.installSentryDeviceId
 import io.ymusic.telemetry.installSentryEngineVersion
 import io.ymusic.telemetry.installSentryPlayerVersion
-import io.ymusic.telemetry.sendSentryFeedback
+import io.ymusic.telemetry.sendFeedbackMessage
 import io.ymusic.ui.APP_HTTP_TIMEOUT
 import io.ymusic.ui.App
 import io.ymusic.ui.AppGraph
 import io.ymusic.ui.AppHttpClients
 import io.ymusic.ui.CatalogueScreen
+import io.ymusic.ui.FolderWriteProblem
 import io.ymusic.ui.IncomingLinks
 import io.ymusic.ui.PictureGestureInput
 import io.ymusic.ui.PictureGestureTracker
@@ -149,7 +151,6 @@ import io.ymusic.ui.resources.Res
 import io.ymusic.ui.resources.cd_close
 import io.ymusic.ui.resources.cd_fullscreen
 import io.ymusic.ui.resources.cd_minimize
-import io.ymusic.ui.resources.feedback_attach
 import io.ymusic.ui.resources.folder_picker_title
 import io.ymusic.ui.resources.playlist_menu_backup
 import io.ymusic.ui.resources.playlist_menu_restore
@@ -202,6 +203,7 @@ import java.awt.Frame
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
+import java.awt.desktop.AppReopenedListener
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
@@ -227,8 +229,8 @@ private val rootLogger: Logger =
     TeeLogger(FileLogger(logWorker), TeeLogger(SentryLogger(), StdoutLogger()))
         .also { it.bindMseNativeLogs() }
 
-/** Ticks when the OS hands over a link, so a window hidden to the tray comes back for it. */
-private val linkArrivals = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+/** Ticks when the OS hands over a link or the app icon is clicked, so a window hidden to the tray comes back. */
+private val showWindowRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
 fun main() {
     defaultLinuxSoftwareRendering()
@@ -238,8 +240,12 @@ fun main() {
     if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_OPEN_URI)) {
         Desktop.getDesktop().setOpenURIHandler { event ->
             IncomingLinks.open(event.uri.toString())
-            linkArrivals.tryEmit(Unit)
+            showWindowRequests.tryEmit(Unit)
         }
+    }
+    // Dock / Finder / Launchpad click on the running instance (kAEReopenApplication).
+    if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_EVENT_REOPENED)) {
+        Desktop.getDesktop().addAppEventListener(AppReopenedListener { showWindowRequests.tryEmit(Unit) })
     }
     // Opened before anything else: crash-reporting consent lives here.
     val appStore = AppStore.open(ymusicDataDir(), rootLogger.fork("app-store"))
@@ -261,7 +267,7 @@ fun main() {
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             consent = settings.flow(AppSettings.crashReports),
         ) {
-            Sentry.init {
+            Sentry.initWithPlatformOptions {
                 it.applyYMusicTelemetry()
                 it.dsn = SENTRY_DSN
                 // The commit in the release traces an event to git history (no source upload).
@@ -327,7 +333,7 @@ fun main() {
                 }
         }
         LaunchedEffect(Unit) {
-            linkArrivals.collect {
+            showWindowRequests.collect {
                 windowVisible = true
                 windowState.isMinimized = false
             }
@@ -864,6 +870,8 @@ private suspend fun buildGraph(settings: AppStoreSettings, session: CookieSessio
         ),
         scanLibraryFolder = { onProgress -> scanPickedFolder(mediaStore, onProgress) },
         libraryFolderPicker = { pickAndRegisterFolder(mediaStore) },
+        canWriteFolder = { uri -> File(Uri.parse(uri).path.toString()).let { it.isDirectory && it.canWrite() } },
+        probeDownloadFolder = { uri -> probeDownloadFolder(File(Uri.parse(uri).path.toString())) },
         rescanLibrary = { folderUri, onProgress -> rescanKnownRoots(mediaStore, folderUri, onProgress) },
         deleteFromDisk = { item ->
             withContext(Dispatchers.IO) {
@@ -872,6 +880,7 @@ private suspend fun buildGraph(settings: AppStoreSettings, session: CookieSessio
                 FileSystem.SYSTEM.delete(item.uri.path.toString().toPath(), mustExist = false)
             }
         },
+        fileRenaming = DesktopFileRenaming,
         revealInFolder = { uri ->
             withContext(Dispatchers.IO) {
                 val path = Uri.parse(uri).filePath()
@@ -905,8 +914,9 @@ private suspend fun buildGraph(settings: AppStoreSettings, session: CookieSessio
         stats = stats,
         api = api,
         remoteConfig = remoteConfig.config,
-        sendFeedback = sendFeedbackAction.takeIf { SENTRY_DSN.isNotEmpty() },
-        pickFeedbackFiles = ::pickFeedbackFiles,
+        captureFeedbackReport = captureFeedbackReportAction.takeIf { SENTRY_DSN.isNotEmpty() },
+        sendFeedbackMessage = ::sendFeedbackMessage.takeIf { SENTRY_DSN.isNotEmpty() },
+        platformInfo = "${System.getProperty("os.name")} ${System.getProperty("os.version")} · ${desktopArch()}",
         createDocument = { name, _ -> pickSaveFile(name)?.let { file -> withContext(Dispatchers.IO) { FileSystem.SYSTEM.sink(file.toOkioPath()) } } },
         openDocument = { _ -> pickOpenFile()?.let { file -> withContext(Dispatchers.IO) { FileSystem.SYSTEM.source(file.toOkioPath()) } } },
         windowResizing = windowResizing,
@@ -1369,6 +1379,40 @@ private suspend fun pickAndRegisterFolder(store: BetterMediaStore): String? {
     return uri.toString()
 }
 
+/** Creates, writes and deletes a scratch file in [folder] — the steps a finished download takes. */
+private suspend fun probeDownloadFolder(folder: File): FolderWriteProblem? = withContext(Dispatchers.IO) {
+    val log = rootLogger.fork("download-folder-probe", mapOf("folder" to folder.path))
+    if (!folder.isDirectory) return@withContext FolderWriteProblem.Missing
+    val probe = try {
+        java.nio.file.Files.createTempFile(folder.toPath(), ".ymusic-write-test", null)
+    } catch (e: java.nio.file.AccessDeniedException) {
+        log.log(Logger.Level.WARN, "test file refused", e)
+        return@withContext FolderWriteProblem.NoPermission
+    } catch (e: java.nio.file.NoSuchFileException) {
+        log.log(Logger.Level.WARN, "folder gone", e)
+        return@withContext FolderWriteProblem.Missing
+    } catch (e: Exception) {
+        log.log(Logger.Level.WARN, "test file not created", e)
+        return@withContext FolderWriteProblem.CannotCreateFiles
+    }
+    try {
+        java.nio.file.Files.write(probe, byteArrayOf(0))
+        null
+    } catch (e: java.nio.file.AccessDeniedException) {
+        log.log(Logger.Level.WARN, "test file not writable", e)
+        FolderWriteProblem.NoPermission
+    } catch (e: Exception) {
+        log.log(Logger.Level.WARN, "test file not writable", e)
+        FolderWriteProblem.CannotCreateFiles
+    } finally {
+        try {
+            java.nio.file.Files.deleteIfExists(probe)
+        } catch (e: Exception) {
+            log.log(Logger.Level.WARN, "test file left behind", e)
+        }
+    }
+}
+
 /** Re-scans [folderUri] (and its children) in place, or every already-added root when null. */
 private suspend fun rescanKnownRoots(store: BetterMediaStore, folderUri: String?, onProgress: (Int) -> Unit): ScanResult? {
     val uris = if (folderUri != null) {
@@ -1469,42 +1513,16 @@ private fun saveWindowPrefs(size: DpSize, position: WindowPosition) {
     }
 }
 
-/** Delivers a feedback report as Sentry user feedback; attachments ride the anchor event. */
-private val sendFeedbackAction: suspend (io.ymusic.ui.FeedbackDraft) -> Unit = { draft ->
+/** Sends the app logs as one anonymous Sentry report for the Feedback screen; returns its event id. */
+private val captureFeedbackReportAction: suspend () -> String? = {
     withContext(Dispatchers.IO) {
         runCatching { logWorker.flush() }
             .onFailure { rootLogger.fork("feedback").log(Logger.Level.WARN, "log flush before feedback failed", it) }
-        val logs = logWorker.filePaths().map { path ->
-            val name = path.substringAfterLast('/').substringAfterLast('\\')
-            io.sentry.kotlin.multiplatform.Attachment(path, name, "text/plain")
-        }
-        sendSentryFeedback(
-            comments = draft.message,
-            name = draft.name,
-            email = draft.email,
-            attachments = logs + draft.attachments.mapNotNull { f ->
-                f.bytes?.let { b -> io.sentry.kotlin.multiplatform.Attachment(b, f.filename) }
+        captureFeedbackReport(
+            logWorker.filePaths().map { path ->
+                io.sentry.kotlin.multiplatform.Attachment(path, path.substringAfterLast('/').substringAfterLast('\\'), "text/plain")
             },
         )
-    }
-}
-
-/** Multi-select file pick for feedback attachments; an over-limit file comes back name-only (null
- *  bytes) so the form can refuse it with its name. */
-private suspend fun pickFeedbackFiles(): List<io.ymusic.ui.FeedbackFile> {
-    val title = getString(Res.string.feedback_attach)
-    val picked = withContext(Dispatchers.Main) {
-        val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD)
-        dialog.isMultipleMode = true
-        dialog.isVisible = true
-        dialog.files.toList()
-    }
-    return withContext(Dispatchers.IO) {
-        picked.map { file ->
-            val size = file.length()
-            if (size > io.ymusic.ui.FeedbackFile.MAX_BYTES) io.ymusic.ui.FeedbackFile(file.name, bytes = null, sizeBytes = size)
-            else io.ymusic.ui.FeedbackFile(file.name, file.readBytes())
-        }
     }
 }
 

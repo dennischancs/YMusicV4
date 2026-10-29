@@ -26,6 +26,7 @@ import { installWatchNextHarvest } from "./watch_next";
 import { isAudioOnly, setAudioOnly, setYmQuality, ymQuality } from "./audio_only";
 import { isYmLive } from "./live";
 import { channelUrl } from "../yt/parse";
+import { get, textOf } from "../yt/scan";
 import {
   captionTrackRows,
   installCaptionMinter,
@@ -86,6 +87,9 @@ type MoviePlayer = {
   "getPlaybackQuality"(): string;
   "getUserPlaybackQualityPreference"(): string;
   "getAvailableQualityData"(): unknown;
+  "getAvailableAudioTracks"?(): unknown;
+  "getAudioTrack"?(): unknown;
+  "setAudioTrack"?(track: unknown): unknown;
   "loadVideoById"(id: string | Record<string, unknown>): unknown;
   "getVideoData"(): Record<string, unknown>;
   "preloadVideoByPlayerVars"(
@@ -165,6 +169,11 @@ function bindPlaybackQualityChange(player: MoviePlayer): void {
   });
 }
 
+function bindAudioTrackChange(player: MoviePlayer): void {
+  player["addEventListener"]("onPlaybackAudioChange", notifyCatalog);
+  player["addEventListener"]("onVideoDataChange", notifyCatalog);
+}
+
 function bindStateChange(player: MoviePlayer): void {
   player["addEventListener"]("onStateChange", function () {
     notifyListen("state");
@@ -181,6 +190,7 @@ function bindVideoProgress(player: MoviePlayer): void {
  *  onto that node (getPlaybackQuality, setPlaybackQualityRange, …). */
 let boundHtmlMedia: ReturnType<typeof activeHtmlMedia> = null;
 let lastYtPlayerState = -999;
+let lastPlayabilityLog = "";
 
 function onHtmlTimeupdate(): void {
   notifyListen("progress");
@@ -282,6 +292,7 @@ function bindMoviePlayerApi(): void {
   iframeListenBound = true;
   bindPictureSize(player);
   bindPlaybackQualityChange(player);
+  bindAudioTrackChange(player);
   bindStateChange(player);
   bindVideoProgress(player);
   bindHtmlMediaEvents();
@@ -1376,6 +1387,19 @@ class Player {
         out["code"] = code;
         out["message"] =
           playability && playability["reason"] != null ? String(playability["reason"]) : "";
+        const userMessage = playabilityUserMessage(playability);
+        if (userMessage) out["userMessage"] = userMessage;
+        const playabilityLog =
+          "mse playability " +
+          code +
+          " userMessage=" +
+          JSON.stringify(userMessage) +
+          " status=" +
+          JSON.stringify(playability).slice(0, 800);
+        if (playabilityLog !== lastPlayabilityLog) {
+          lastPlayabilityLog = playabilityLog;
+          console.info(playabilityLog);
+        }
         out["canRetry"] = true;
         out["needReset"] =
           code.indexOf("LOGIN") >= 0 ||
@@ -1472,7 +1496,24 @@ class Player {
       "qualities": this.qualityOptions(),
       "caption": selectedCaptionVss(),
       "captionTracks": captionTrackRows(),
+      "audioTrack": selectedAudioTrackId(player),
+      "audioTracks": audioTrackRows(player),
     };
+  }
+
+  setAudioTrack(id: string): void {
+    const player = moviePlayer();
+    if (!player) throw new JsEngineErrorImpl("setAudioTrack: no movie_player", "E20164");
+    const tracks = availableAudioTracks(player);
+    for (let i = 0; i < tracks.length; i++) {
+      const track = tracks[i]!;
+      if (track["id"] === id && player["setAudioTrack"]) {
+        player["setAudioTrack"](track);
+        notifyCatalog();
+        return;
+      }
+    }
+    throw new JsEngineErrorImpl("setAudioTrack: no audio track " + id, "E20162");
   }
 
   status(): Record<string, unknown> {
@@ -1525,6 +1566,50 @@ class Player {
   }
 }
 
+function availableAudioTracks(player: MoviePlayer): Record<string, unknown>[] {
+  const list = player["getAvailableAudioTracks"] ? player["getAvailableAudioTracks"]() : null;
+  const out: Record<string, unknown>[] = [];
+  if (!Array.isArray(list)) return out;
+  for (let i = 0; i < list.length; i++) {
+    const track = asRec(list[i]);
+    if (track && typeof track["id"] === "string") out.push(track);
+  }
+  return out;
+}
+
+/** base.js minifies the field holding a track's {id, name, isDefault}, so it is found by shape. */
+function audioTrackInfo(track: Record<string, unknown>): Record<string, unknown> | null {
+  for (const key in track) {
+    const info = asRec(track[key]);
+    if (info && typeof info["name"] === "string" && typeof info["isDefault"] === "boolean")
+      return info;
+  }
+  return null;
+}
+
+/** Empty for a single-track video: there is nothing to pick. */
+function audioTrackRows(player: MoviePlayer): Record<string, unknown>[] {
+  const tracks = availableAudioTracks(player);
+  const rows: Record<string, unknown>[] = [];
+  if (tracks.length < 2) return rows;
+  for (let i = 0; i < tracks.length; i++) {
+    const info = audioTrackInfo(tracks[i]!);
+    if (!info) return [];
+    rows.push({
+      "id": tracks[i]!["id"],
+      "displayName": info["name"],
+      "isDefault": info["isDefault"],
+    });
+  }
+  return rows;
+}
+
+function selectedAudioTrackId(player: MoviePlayer): string | null {
+  const track = asRec(player["getAudioTrack"] ? player["getAudioTrack"]() : null);
+  const id = track ? track["id"] : null;
+  return typeof id === "string" ? id : null;
+}
+
 const ytPlayer = new Player();
 
 export function initPlayer(): Promise<Record<string, unknown>> {
@@ -1548,6 +1633,10 @@ export function setPlayerQuality(quality: string, audioOnly: boolean): void {
 
 export function mintPlayerPo(videoId: string): Promise<Record<string, unknown>> {
   return ytPlayer.mintPo(videoId);
+}
+
+export function setPlayerAudioTrack(id: string): void {
+  ytPlayer.setAudioTrack(id);
 }
 
 export function playPlayer(): void {
@@ -1634,4 +1723,41 @@ onCaptionsChanged(notifyCatalog);
 
 function notifyListen(kind: ListenKind): void {
   if (listenHook) listenHook(kind);
+}
+
+/** YouTube's own words for a playability verdict, as its player shows them: the headline over its
+ *  detail, e.g. "Video unavailable" / "This video is private". The error screen comes in two layouts
+ *  (the legacy message renderer's reason/subreason, the interstitial view model's title/description);
+ *  without one, the bare reason and the status's messages. Already in the viewer's language. */
+function playabilityUserMessage(playability: Record<string, unknown> | null): string {
+  const screen = get(playability, "errorScreen", "playerErrorMessageRenderer");
+  const interstitial = get(
+    playability,
+    "errorScreen",
+    "playerInterstitialRenderer",
+    "content",
+    "interstitialViewModel",
+  );
+  const bareReason = get(playability, "reason");
+  const headline =
+    nonBlank(textOf(get(screen, "reason"))) ??
+    nonBlank(textOf(get(interstitial, "title"))) ??
+    nonBlank(typeof bareReason === "string" ? bareReason : undefined);
+  const messages = get(playability, "messages");
+  const detail =
+    nonBlank(textOf(get(screen, "subreason"))) ??
+    nonBlank(textOf(get(interstitial, "description"))) ??
+    nonBlank(
+      Array.isArray(messages)
+        ? messages.filter((m): m is string => typeof m === "string").join("\n")
+        : undefined,
+    );
+  const lines: string[] = [];
+  if (headline) lines.push(headline);
+  if (detail && detail !== headline) lines.push(detail);
+  return lines.join("\n");
+}
+
+function nonBlank(text: string | undefined): string | undefined {
+  return text && text.trim() !== "" ? text : undefined;
 }

@@ -136,6 +136,7 @@
     <string name="sort_last_added">Последно добавени</string>
     <string name="sort_date_created">Дата на създаване</string>
     <string name="sort_type">Тип</string>
+    <string name="sort_track_number">Номер на песента</string>
     <string name="sort_duration">Продължителност</string>
     <string name="sort_song_count">Брой песни</string>
     <string name="cd_sort">Сортиране</string>
@@ -208,6 +209,7 @@
     <string name="sleep_hours_minutes">%1$d ч %2$d мин</string>
     <string name="sleep_add_minutes">+%1$d мин</string>
     <string name="playback_failed">Неуспешно (%1$s)</string>
+    <string name="playback_botguard_failed">Неуспешно заобикаляне на Botguard</string>
 
 
     <!-- Settings -->
@@ -230,17 +232,31 @@
     <string name="settings_licenses_intro">YMusic е с отворен код под лиценз GNU GPL v3.0. Включва следните компоненти:</string>
 
     <!-- Feedback -->
-    <string name="feedback_hint">Кажете ни какво се е счупило или какво бихте искали да видите. Снимките на екрана и лог файловете помагат.</string>
-    <string name="feedback_message_label">Какво се случи?</string>
-    <string name="feedback_name_label">Име (по избор)</string>
-    <string name="feedback_email_label">Имейл (по избор)</string>
-    <string name="feedback_attach">Прикачи файлове</string>
-    <string name="feedback_send">Изпрати</string>
-    <string name="feedback_sent">Отзивът е изпратен — благодарим!</string>
-    <string name="feedback_send_failed">Отзивът не можа да се изпрати — опитайте отново</string>
-    <string name="feedback_attach_failed">Избраният файл не можа да се прочете — не е прикачен</string>
-    <string name="feedback_file_too_large">„%1$s“ е твърде голям за прикачване (макс. 10 MB)</string>
-    <string name="cd_remove_attachment">Премахни прикачения файл</string>
+    <string name="feedback_intro">Кажете ни какво се е объркало или какво бихте искали да видите – в GitHub или по имейл. Включете анонимната си информация по-долу, за да намерим логовете ви и да отговорим.</string>
+    <string name="feedback_info_title">Анонимна информация</string>
+    <string name="feedback_copy">Копиране</string>
+    <string name="feedback_copied">Копирано</string>
+    <string name="feedback_device_id">ID на устройството</string>
+    <string name="feedback_app">Приложение</string>
+    <string name="feedback_engine">Енджин</string>
+    <string name="feedback_language">Език</string>
+    <string name="feedback_info_note">Без име, имейл или акаунт — само тези ID и логовете на това приложение.</string>
+    <string name="feedback_github_title">Отваряне на проблем в GitHub</string>
+    <string name="feedback_github_hint">Публично. Най-добре за грешки и идеи — други могат да следят и да добавят.</string>
+    <string name="feedback_email_title">Имейл до %1$s</string>
+    <string name="feedback_email_hint">Лично. Най-добре за въпроси за акаунта или лични въпроси.</string>
+    <string name="feedback_email_subject">Отзив за YMusic</string>
+    <string name="feedback_prefilled_note">И двата варианта се отварят с вече попълнена информация. Ако липсва, поставете я — без нея не можем да помогнем.</string>
+    <string name="feedback_reports_off_title">Анонимните отчети са изключени</string>
+    <string name="feedback_reports_off_message">За да проучим проблема ви, ни трябват логовете на това приложение. Докоснете „Продължи“ и YMusic ще включи отново анонимните отчети и ще изпрати логовете.</string>
+    <string name="feedback_reports_off_note">Не се изпраща име, имейл или акаунт. Можете отново да изключите отчетите в Настройки.</string>
+    <string name="feedback_continue">Продължи</string>
+    <string name="feedback_sentry_link">или чрез Sentry</string>
+    <string name="feedback_sentry_title">Изпращане чрез Sentry</string>
+    <string name="feedback_sentry_label">Какво се случи?</string>
+    <string name="feedback_sentry_note">Анонимната ви информация е прикачена. Не можем да отговаряме на съобщения, изпратени оттук, затова използвайте GitHub или имейл, ако искате отговор.</string>
+    <string name="feedback_sentry_send">Изпращане</string>
+    <string name="feedback_sentry_sent">Изпратено чрез Sentry. Благодарим!</string>
 
     <!-- Accessibility labels (contentDescription only) -->
     <string name="cd_menu">Меню</string>
@@ -268,6 +284,7 @@
     <string name="play_all">Пусни всички</string>
     <string name="shuffle_all">Разбъркай всички</string>
     <string name="cd_shuffle">Разбъркване</string>
+    <string name="cd_scroll_to_now_playing">Към песента, която звучи</string>
     <string name="cd_sleep_timer">Таймер за сън</string>
     <string name="cd_captions">Субтитри</string>
     <string name="cd_drag_to_reorder">Плъзнете за пренареждане</string>
@@ -535,6 +552,22 @@
     <string name="video_details_delete_message">Да се изтрият ли окончателно коментарът ви и всички отговори към него?</string>
     <string name="video_details_deleted">Коментарът е изтрит</string>
     <string name="menu_details_comments">Подробности и коментари</string>
+    <string name="menu_search_lyrics">Търсене на текста</string>
     <string name="menu_speed_pitch">Скорост и тон</string>
     <string name="link_open_failed">Не може да се отвори: %1$s</string>
+    <string name="sort_manual">Ръчно</string>
+    <string name="arrange_songs">Подреди песните</string>
+    <string name="arrange_stacking">Натрупване · %1$d</string>
+    <string name="cd_reset_stacking">Нулирай натрупването</string>
+    <string name="cd_move_to_top">Премести най-горе</string>
+    <string name="dialog_undo">Отмени</string>
+    <string name="dialog_save">Запази</string>
+    <string name="upgraded_message">YMusic е обновено до %1$s</string>
+    <string name="upgraded_view_changelog">Вижте промените</string>
+    <string name="menu_go_to_artist">Към изпълнителя</string>
+    <string name="menu_go_to_album">Към албума</string>
+    <string name="link_copied">Връзката е копирана</string>
+    <string name="download_other_format">Изтегляне в друг формат</string>
+    <string name="unsubscribe">Отписване</string>
+    <string name="unsubscribed">Абонаментът е прекратен</string>
 </resources>

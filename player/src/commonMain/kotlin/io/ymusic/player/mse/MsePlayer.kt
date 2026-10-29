@@ -10,6 +10,7 @@ import io.ymusic.dynamicengine.embeddedPlayerJsSource
 import io.ymusic.dynamicengine.player.DynamicEnginePlayer
 import io.ymusic.mse.MseVideoSurface
 import io.ymusic.player.AudioSessionSource
+import io.ymusic.player.AudioTrack
 import io.ymusic.player.AudioTrackState
 import io.ymusic.player.CaptionCue
 import io.ymusic.player.CaptionLine
@@ -354,7 +355,10 @@ class MsePlayer internal constructor(
         }
     }
 
-    override fun selectAudioTrack(id: String) = Unit
+    override fun selectAudioTrack(id: String) {
+        _audioTracks.update { it.copy(selectedId = id) }
+        send { it.setAudioTrack(id, log) }
+    }
 
     /** Android TextureView: pass the window when it appears, null on destroy. JVM bitmap path ignores this. */
     fun setVideoSurface(surface: MseVideoSurface?) {
@@ -688,7 +692,7 @@ class MsePlayer internal constructor(
         if (json.boolOrNull("poRejected") == true) {
             // googlevideo rejected this session's PO token: only a fresh session re-attests.
             tearDownSession("po token rejected")
-            fail(TechnicalException("E60065", "googlevideo rejected the PO token (StreamProtectionStatus=3)"), "po token rejected", needReset = true)
+            fail(TechnicalException(PlayerError.PO_TOKEN_REJECTED, "googlevideo rejected the PO token (StreamProtectionStatus=3)"), "po token rejected", needReset = true)
             return
         }
         _audioSessionId.value = if (hostLive()) videoSurface.audioSessionId() else 0
@@ -772,6 +776,7 @@ class MsePlayer internal constructor(
                 PlayerError(
                     json.stringOrNull("code") ?: "E60033",
                     json.stringOrNull("message"),
+                    userMessage = json.stringOrNull("userMessage")?.takeIf { it.isNotBlank() },
                     canRetry = json.boolOrNull("canRetry") ?: true,
                     needReset = json.boolOrNull("needReset") ?: false,
                 ),
@@ -816,6 +821,7 @@ class MsePlayer internal constructor(
             preferredQuality = prefer,
         )
         _captions.value = CaptionState(tracks = json.captionTracks(), selectedLanguage = json.stringOrNull("caption"))
+        _audioTracks.value = AudioTrackState(tracks = json.audioTracks(), selectedId = json.stringOrNull("audioTrack"))
     }
 
     private fun fail(error: Throwable, message: String, needReset: Boolean) {
@@ -881,6 +887,13 @@ private fun JsonObject.captionTracks(): List<CaptionTrack> {
             vssId = vssId,
             kind = row.stringOrNull("kind").orEmpty(),
         )
+    }
+}
+
+private fun JsonObject.audioTracks(): List<AudioTrack> {
+    return objects("audioTracks").mapNotNull { row ->
+        val id = row.stringOrNull("id") ?: return@mapNotNull null
+        AudioTrack(id, row.stringOrNull("displayName") ?: id)
     }
 }
 

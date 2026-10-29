@@ -4,11 +4,13 @@ import android.Manifest
 import android.app.KeyguardManager
 import android.app.PictureInPictureParams
 import android.content.ActivityNotFoundException
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.Rational
 import androidx.activity.SystemBarStyle
@@ -39,13 +41,13 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
+import io.ymusic.player.PlayableItem
 import io.ymusic.player.VideoSize
 import io.ymusic.settings.AppSettings
 import io.ymusic.settings.flow
 import io.ymusic.ui.App
 import io.ymusic.ui.AppGraph
 import io.ymusic.ui.AppSection
-import io.ymusic.ui.FeedbackFile
 import io.ymusic.ui.IncomingLinks
 import io.ymusic.ui.LinkAction
 import io.ymusic.ui.designPaletteFor
@@ -57,10 +59,12 @@ import io.ymusic.ui.resources.folder_picker_disabled
 import io.ymusic.ui.resources.folder_picker_missing
 import io.ymusic.ui.resources.folder_picker_open_settings
 import io.ymusic.ui.startupFailedMessage
+import kmpcommon.log.Logger
 import kmpcommon.uri.Uri
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
@@ -175,67 +179,6 @@ class MainActivity : FragmentActivity() {
                 .log(kmpcommon.log.Logger.Level.WARN, "no app details screen for $pkg", e)
             startActivity(Intent(Settings.ACTION_SETTINGS))
         }
-    }
-
-    // Same deferred bridge for the feedback attachment pick (any file type, multi-select).
-    private var pendingFilePick: CompletableDeferred<List<android.net.Uri>>? = null
-    private val openFiles =
-        registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-            pendingFilePick?.complete(uris)
-            pendingFilePick = null
-        }
-
-    /** Launches the system file picker and reads each pick into a [FeedbackFile]; an over-limit
-     *  file comes back name-only (null bytes) so the form can refuse it with its name. */
-    private val pickFeedbackFiles: suspend () -> List<FeedbackFile> = {
-        pendingFilePick?.complete(emptyList()) // a prior pick still open → abandon it
-        val deferred = CompletableDeferred<List<android.net.Uri>>()
-        pendingFilePick = deferred
-        withContext(Dispatchers.Main) { openFiles.launch("*/*") }
-        val uris = deferred.await()
-        withContext(Dispatchers.IO) {
-            // Per-file isolation: one unreadable pick (an offline cloud-provider entry, a revoked
-            // grant) must not abort the whole batch — the rest still attach.
-            uris.mapNotNull { uri ->
-                try {
-                    readFeedbackFile(uri)
-                } catch (e: Exception) {
-                    (application as YMusicApplication).rootLogger.fork("feedback")
-                        .log(kmpcommon.log.Logger.Level.WARN, "attachment read failed: $uri", e)
-                    null
-                }
-            }
-        }
-    }
-
-    private fun readFeedbackFile(uri: android.net.Uri): FeedbackFile {
-        var name: String? = null
-        var size = -1L
-        contentResolver.query(uri, null, null, null, null)?.use { c ->
-            if (c.moveToFirst()) {
-                val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (nameIdx >= 0) name = c.getString(nameIdx)
-                val sizeIdx = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                if (sizeIdx >= 0 && !c.isNull(sizeIdx)) size = c.getLong(sizeIdx)
-            }
-        }
-        val filename = name ?: uri.lastPathSegment ?: "attachment"
-        if (size > FeedbackFile.MAX_BYTES) return FeedbackFile(filename, bytes = null, sizeBytes = size)
-        // Size can be unknown (-1): read capped, and past the cap it degrades to name-only the same way.
-        val bytes = contentResolver.openInputStream(uri)?.use { input ->
-            val out = java.io.ByteArrayOutputStream()
-            val chunk = ByteArray(64 * 1024)
-            var total = 0L
-            while (true) {
-                val n = input.read(chunk)
-                if (n < 0) break
-                out.write(chunk, 0, n)
-                total += n
-                if (total > FeedbackFile.MAX_BYTES) return FeedbackFile(filename, bytes = null, sizeBytes = total)
-            }
-            out.toByteArray()
-        } ?: error("unreadable attachment: $filename")
-        return FeedbackFile(filename, bytes, contentType = contentResolver.getType(uri))
     }
 
     private var pendingCreate: CompletableDeferred<android.net.Uri?>? = null
@@ -362,9 +305,6 @@ class MainActivity : FragmentActivity() {
         if (app.folderPicker === pickFolder) app.folderPicker = null
         pendingPick?.complete(null)
         pendingPick = null
-        if (app.feedbackFilePicker === pickFeedbackFiles) app.feedbackFilePicker = null
-        pendingFilePick?.complete(emptyList())
-        pendingFilePick = null
         if (app.qrScanner === scanQr) app.qrScanner = null
         pendingScan?.complete(null)
         pendingScan = null
@@ -403,7 +343,6 @@ class MainActivity : FragmentActivity() {
             )
         }
         (application as YMusicApplication).folderPicker = pickFolder
-        (application as YMusicApplication).feedbackFilePicker = pickFeedbackFiles
         (application as YMusicApplication).qrScanner = scanQr
         (application as YMusicApplication).deviceOwnerAuth = confirmOwner
         (application as YMusicApplication).documentCreator = createDocument
@@ -559,7 +498,7 @@ class MainActivity : FragmentActivity() {
     private inline fun guardPip(block: () -> Unit) {
         try {
             block()
-        } catch (e: IllegalStateException) {
+        } catch (e: RuntimeException) {
             pipSupported = false
             (application as YMusicApplication).rootLogger.fork("pip")
                 .log(kmpcommon.log.Logger.Level.WARN, "system rejected PiP; disabled for this activity", e)
@@ -587,10 +526,37 @@ class MainActivity : FragmentActivity() {
         if (intent?.action != Intent.ACTION_VIEW && intent?.action != ACTION_OPEN_LINK) return
         // Reopened from Recents: the task's original link intent comes back, already handled.
         if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        val data = intent.data
+        if (intent.action == Intent.ACTION_VIEW && data?.scheme == ContentResolver.SCHEME_CONTENT) {
+            playFile(data)
+            return
+        }
         val url = intent.dataString ?: return
         val action = intent.getStringExtra(EXTRA_LINK_ACTION)?.let { name -> LinkAction.entries.firstOrNull { it.name == name } }
         IncomingLinks.open(url, action ?: LinkAction.OPEN)
     }
+
+    /** An audio or video file opened from another app ("Open with"): played as a queue of one. */
+    private fun playFile(uri: android.net.Uri) {
+        lifecycleScope.launch {
+            // A failed startup is already reported by the boot screen; there is no player to hand the file to.
+            val graph = runCatching { (application as YMusicApplication).graphAsync().await() }.getOrNull() ?: return@launch
+            val title = try {
+                withContext(Dispatchers.IO) { displayName(uri) }?.substringBeforeLast('.')
+            } catch (e: Exception) {
+                graph.logger?.log(Logger.Level.WARN, "open-with display name failed", e)
+                null
+            }
+            graph.temporaryUris.update { it + uri.toString() }
+            graph.player.setQueue(listOf(PlayableItem.LocalMedia(uri = uri.toString(), title = title)))
+            graph.pip.nowPlayingOpen.value = true
+        }
+    }
+
+    private fun displayName(uri: android.net.Uri): String? =
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

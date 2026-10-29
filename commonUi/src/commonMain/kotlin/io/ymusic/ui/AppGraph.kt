@@ -7,6 +7,7 @@ import io.ymusic.dynamicengine.DynamicEngineManager
 import io.ymusic.imageloader.ImageLoader
 import io.ymusic.mediastore.BetterMediaStore
 import io.ymusic.player.LoopMode
+import io.ymusic.player.PlayableItem
 import io.ymusic.player.Player
 import io.ymusic.remoteconfig.ApiService
 import io.ymusic.remoteconfig.RemoteConfigData
@@ -24,6 +25,7 @@ import io.ymusic.ui.sponsorblock.ServiceSponsorBlockApi
 import io.ymusic.ui.sponsorblock.SponsorBlockApi
 import io.ymusic.ui.sponsorblock.SponsorBlockService
 import io.ymusic.ui.sponsorblock.SponsorBlockStore
+import kmpcommon.WorkerThread
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -106,11 +108,18 @@ class AppGraph(
     /** Whether the app can write into a folder [libraryFolderPicker] returned; Android checks the SAF grant,
      *  which some providers refuse (read-only). */
     val canWriteFolder: (String) -> Boolean = { true },
+    /** Test-writes (creates, writes, deletes) a file in a would-be download folder; null when that works. */
+    val probeDownloadFolder: suspend (String) -> FolderWriteProblem? = { null },
     /**
      * Re-scans already-added folders in place (no folder pick). [folderUri] null means every library
      * root; otherwise only that folder and its children. Null when the shell can't scan.
      */
     val rescanLibrary: RescanAction? = null,
+    /**
+     * Soft-deletes every Library folder whose storage grant the app no longer holds (Android SAF), so
+     * its items stop showing as playable; re-adding the folder revives them. Null where grants can't be lost.
+     */
+    val pruneUngrantedFolders: (suspend () -> Unit)? = null,
     /**
      * Permanently deletes the item's FILE from storage (okio delete on desktop, SAF
      * DocumentsContract on Android) — the destructive half of the Library's "Remove from disk";
@@ -121,6 +130,10 @@ class AppGraph(
     /** Reveal a file (by its uri) in the OS file manager — desktop only (mac Finder / file explorer);
      *  null on mobile, which hides the "Reveal in Finder" download action. */
     val revealInFolder: (suspend (uri: String) -> Unit)? = null,
+    /** Opens the system share sheet with a text (a link). Null = the UI copies it to the clipboard instead. */
+    val shareText: ((text: String) -> Unit)? = null,
+    /** Renames downloaded files in place (Downloads' "Rename"); null hides the action. */
+    val fileRenaming: FileRenaming? = null,
     /** Display version for the drawer header (e.g. "4.0.1 · arm64"); null hides the line. */
     val appVersion: String? = null,
     /** Settings › Versions: the build's versionName and versionCode; null hides the app line. */
@@ -176,17 +189,15 @@ class AppGraph(
      */
     val downloads: io.ymusic.download.DownloadService? = null,
     /**
-     * Delivers a user feedback report to the crash-reporting backend (Sentry user feedback in the
-     * shells). Null hides Settings' "Send feedback" entry entirely — e.g. a build with no DSN, or a
-     * platform without the telemetry module.
+     * Sends the app logs as one anonymous report (Sentry in the shells) and returns its id, which a
+     * message sent from the Feedback section links to; null when nothing was sent. Null drops the
+     * reports-off dialog and the message option from the Feedback section.
      */
-    val sendFeedback: (suspend (FeedbackDraft) -> Unit)? = null,
-    /**
-     * The OS file picker for feedback attachments, reading each picked file's bytes (an over-limit
-     * file comes back with null bytes — see [FeedbackFile]). Null hides the attach button while the
-     * rest of the feedback form still works.
-     */
-    val pickFeedbackFiles: (suspend () -> List<FeedbackFile>)? = null,
+    val captureFeedbackReport: (suspend () -> String?)? = null,
+    /** Sends a message typed in the Feedback section along with the report it belongs to; null hides that option. */
+    val sendFeedbackMessage: ((reportId: String, message: String) -> Unit)? = null,
+    /** The OS and CPU for the Feedback section's info (e.g. "Android 16 · arm64-v8a"); null omits them. */
+    val platformInfo: String? = null,
     /** The OS "save as" picker: a sink into the chosen file (the caller closes it), null when canceled.
      *  Null hides playlist backup. */
     val createDocument: (suspend (suggestedName: String, mimeType: String) -> okio.Sink?)? = null,
@@ -248,6 +259,12 @@ class AppGraph(
      */
     val pip = PipCoordinator(player, settings)
 
+    /** Uris readable only through a temporary grant ("Open with" a file), kept out of Play again, which outlives the grant. */
+    val temporaryUris = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Per process, so the notice outlives an activity recreation. */
+    internal val upgradeNotice by lazy { UpgradeNotice(settings, appVersionCode) }
+
     /** One per process — a second instance double-captures playback failures and double-credits watch time.
      *  Lazy: its collectors start at once and must only see a fully constructed graph. */
     val playback by lazy {
@@ -258,7 +275,9 @@ class AppGraph(
     init {
         // Process-lifetime like the graph itself: every queue is recorded, whatever screen is up.
         playHistory?.takeUnless { guest }?.let {
-            PlayAgainRecorder(player, it.playAgain, logger?.fork("play-again"))
+            PlayAgainRecorder(player, it.playAgain, logger?.fork("play-again")) { item ->
+                item is PlayableItem.LocalMedia && item.uri in temporaryUris.value
+            }
                 .start(CoroutineScope(SupervisorJob() + Dispatchers.Default))
         }
         // Here, not in App: Android Auto can start playback without the UI ever composing.
@@ -287,4 +306,14 @@ class AppGraph(
     fun requestRefresh() {
         refreshRequests.tryEmit(Unit)
     }
+}
+
+/** Renaming a media file in its own folder. */
+@WorkerThread
+interface FileRenaming {
+    /** The file's current name, extension included; null when it is gone. */
+    fun nameOf(uri: String): String?
+
+    /** Renames the file to [newName] (extension included) and returns its new uri. Throws on failure. */
+    fun rename(uri: String, newName: String): String
 }

@@ -136,6 +136,7 @@
     <string name="sort_last_added">Legutóbb hozzáadott</string>
     <string name="sort_date_created">Létrehozás dátuma</string>
     <string name="sort_type">Típus</string>
+    <string name="sort_track_number">Számsorszám</string>
     <string name="sort_duration">Időtartam</string>
     <string name="sort_song_count">Dalok száma</string>
     <string name="cd_sort">Rendezés</string>
@@ -208,6 +209,7 @@
     <string name="sleep_hours_minutes">%1$d óra %2$d perc</string>
     <string name="sleep_add_minutes">+%1$d perc</string>
     <string name="playback_failed">Sikertelen (%1$s)</string>
+    <string name="playback_botguard_failed">A Botguard megkerülése sikertelen</string>
 
 
     <!-- Settings -->
@@ -230,17 +232,31 @@
     <string name="settings_licenses_intro">A YMusic nyílt forráskódú, GNU GPL v3.0 licenc alatt. A következő összetevőket tartalmazza:</string>
 
     <!-- Feedback -->
-    <string name="feedback_hint">Írd meg, mi romlott el, vagy mit szeretnél látni. Képernyőképek vagy naplófájlok sokat segítenek.</string>
-    <string name="feedback_message_label">Mi történt?</string>
-    <string name="feedback_name_label">Név (nem kötelező)</string>
-    <string name="feedback_email_label">E-mail (nem kötelező)</string>
-    <string name="feedback_attach">Fájlok csatolása</string>
-    <string name="feedback_send">Küldés</string>
-    <string name="feedback_sent">Visszajelzés elküldve — köszönjük!</string>
-    <string name="feedback_send_failed">Nem sikerült elküldeni a visszajelzést — próbáld újra</string>
-    <string name="feedback_attach_failed">A kiválasztott fájl nem olvasható — nem lett csatolva</string>
-    <string name="feedback_file_too_large">A(z) „%1$s” túl nagy a csatoláshoz (max. 10 MB)</string>
-    <string name="cd_remove_attachment">Melléklet eltávolítása</string>
+    <string name="feedback_intro">Írd meg, mi romlott el, vagy mit szeretnél látni, GitHubon vagy e-mailben. Csatold az alábbi anonim adataidat, hogy megtaláljuk a naplóidat és válaszolhassunk.</string>
+    <string name="feedback_info_title">Névtelen adatok</string>
+    <string name="feedback_copy">Másolás</string>
+    <string name="feedback_copied">Másolva</string>
+    <string name="feedback_device_id">Eszközazonosító</string>
+    <string name="feedback_app">Alkalmazás</string>
+    <string name="feedback_engine">Motor</string>
+    <string name="feedback_language">Nyelv</string>
+    <string name="feedback_info_note">Se név, se e-mail, se fiók — csak ezek az azonosítók és az alkalmazás naplói.</string>
+    <string name="feedback_github_title">Hibajegy nyitása a GitHubon</string>
+    <string name="feedback_github_hint">Nyilvános. Hibákhoz és ötletekhez a legjobb — mások is követhetik és kiegészíthetik.</string>
+    <string name="feedback_email_title">E-mail küldése ide: %1$s</string>
+    <string name="feedback_email_hint">Privát. Fiókkal kapcsolatos vagy személyes kérdésekhez a legjobb.</string>
+    <string name="feedback_email_subject">YMusic visszajelzés</string>
+    <string name="feedback_prefilled_note">Mindkettő a már kitöltött adatokkal nyílik meg. Ha hiányoznak, illeszd be őket — nélkülük nem tudunk segíteni.</string>
+    <string name="feedback_reports_off_title">A névtelen jelentések ki vannak kapcsolva</string>
+    <string name="feedback_reports_off_message">A probléma kivizsgálásához szükségünk van az alkalmazás naplóira. Koppints a Folytatás gombra, és a YMusic újra bekapcsolja a névtelen jelentéseket, majd elküldi a naplókat.</string>
+    <string name="feedback_reports_off_note">Nem küldünk nevet, e-mailt vagy fiókot. A jelentéseket a Beállításokban újra kikapcsolhatod.</string>
+    <string name="feedback_continue">Folytatás</string>
+    <string name="feedback_sentry_link">vagy Sentryn keresztül</string>
+    <string name="feedback_sentry_title">Küldés Sentryn keresztül</string>
+    <string name="feedback_sentry_label">Mi történt?</string>
+    <string name="feedback_sentry_note">Az anonim adataidat csatoltuk. Az innen küldött üzenetekre nem tudunk válaszolni, ezért ha választ szeretnél, használd a GitHubot vagy az e-mailt.</string>
+    <string name="feedback_sentry_send">Küldés</string>
+    <string name="feedback_sentry_sent">Elküldve Sentryn keresztül. Köszönjük!</string>
 
     <!-- Accessibility labels (contentDescription only) -->
     <string name="cd_menu">Menü</string>
@@ -268,6 +284,7 @@
     <string name="play_all">Összes lejátszása</string>
     <string name="shuffle_all">Összes keverése</string>
     <string name="cd_shuffle">Keverés</string>
+    <string name="cd_scroll_to_now_playing">Ugrás a lejátszott dalra</string>
     <string name="cd_sleep_timer">Elalvási időzítő</string>
     <string name="cd_captions">Feliratok</string>
     <string name="cd_drag_to_reorder">Húzd az átrendezéshez</string>
@@ -535,6 +552,22 @@
     <string name="video_details_delete_message">Véglegesen törlöd a hozzászólásodat és az összes rá érkezett választ?</string>
     <string name="video_details_deleted">Hozzászólás törölve</string>
     <string name="menu_details_comments">Részletek és hozzászólások</string>
+    <string name="menu_search_lyrics">Dalszöveg keresése</string>
     <string name="menu_speed_pitch">Sebesség és hangmagasság</string>
     <string name="link_open_failed">Nem nyitható meg: %1$s</string>
+    <string name="sort_manual">Kézi</string>
+    <string name="arrange_songs">Dalok rendezése</string>
+    <string name="arrange_stacking">Halmozás · %1$d</string>
+    <string name="cd_reset_stacking">Halmozás visszaállítása</string>
+    <string name="cd_move_to_top">Áthelyezés a tetejére</string>
+    <string name="dialog_undo">Visszavonás</string>
+    <string name="dialog_save">Mentés</string>
+    <string name="upgraded_message">A YMusic frissült erre: %1$s</string>
+    <string name="upgraded_view_changelog">Változások megtekintése</string>
+    <string name="menu_go_to_artist">Ugrás az előadóhoz</string>
+    <string name="menu_go_to_album">Ugrás az albumhoz</string>
+    <string name="link_copied">Link másolva</string>
+    <string name="download_other_format">Letöltés más formátumban</string>
+    <string name="unsubscribe">Leiratkozás</string>
+    <string name="unsubscribed">Leiratkozva</string>
 </resources>

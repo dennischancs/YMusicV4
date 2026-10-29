@@ -138,6 +138,7 @@
     <string name="sort_last_added">最近添加</string>
     <string name="sort_date_created">创建日期</string>
     <string name="sort_type">类型</string>
+    <string name="sort_track_number">曲目编号</string>
     <string name="sort_duration">时长</string>
     <string name="sort_song_count">歌曲数</string>
     <string name="cd_sort">排序</string>
@@ -211,6 +212,7 @@
     <string name="sleep_hours_minutes">%1$d 小时 %2$d 分钟</string>
     <string name="sleep_add_minutes">+%1$d 分钟</string>
     <string name="playback_failed">播放失败（%1$s）</string>
+    <string name="playback_botguard_failed">Botguard 绕过失败</string>
 
 
     <!-- Settings -->
@@ -233,17 +235,31 @@
     <string name="settings_licenses_intro">YMusic 基于 GNU GPL v3.0 开源，包含以下组件：</string>
 
     <!-- Feedback -->
-    <string name="feedback_hint">告诉我们哪里出了问题，或者你希望看到什么。附上截图或日志文件会很有帮助。</string>
-    <string name="feedback_message_label">发生了什么？</string>
-    <string name="feedback_name_label">姓名（可选）</string>
-    <string name="feedback_email_label">电子邮件（可选）</string>
-    <string name="feedback_attach">附加文件</string>
-    <string name="feedback_send">发送</string>
-    <string name="feedback_sent">反馈已发送 — 谢谢！</string>
-    <string name="feedback_send_failed">无法发送反馈 — 请重试</string>
-    <string name="feedback_attach_failed">无法读取所选文件 — 未能附加</string>
-    <string name="feedback_file_too_large">“%1$s”太大，无法附加（最大 10 MB）</string>
-    <string name="cd_remove_attachment">移除附件</string>
+    <string name="feedback_intro">通过 GitHub 或邮件告诉我们哪里出了问题，或你希望看到什么。请附上下方的匿名信息，方便我们找到你的日志并回复。</string>
+    <string name="feedback_info_title">匿名信息</string>
+    <string name="feedback_copy">复制</string>
+    <string name="feedback_copied">已复制</string>
+    <string name="feedback_device_id">设备 ID</string>
+    <string name="feedback_app">应用</string>
+    <string name="feedback_engine">引擎</string>
+    <string name="feedback_language">语言</string>
+    <string name="feedback_info_note">不含姓名、邮箱或账号 — 只有这些 ID 和本应用的日志。</string>
+    <string name="feedback_github_title">在 GitHub 上提交 Issue</string>
+    <string name="feedback_github_hint">公开。最适合反馈 Bug 和想法 — 其他人可以关注并补充。</string>
+    <string name="feedback_email_title">发送邮件至 %1$s</string>
+    <string name="feedback_email_hint">私密。最适合账号或个人问题。</string>
+    <string name="feedback_email_subject">YMusic 反馈</string>
+    <string name="feedback_prefilled_note">两种方式打开时都会预先填好信息。如果缺失，请粘贴 — 没有这些信息我们无法提供帮助。</string>
+    <string name="feedback_reports_off_title">匿名报告已关闭</string>
+    <string name="feedback_reports_off_message">为了排查你的问题，我们需要本应用的日志。点按“继续”，YMusic 会重新开启匿名报告并发送日志。</string>
+    <string name="feedback_reports_off_note">不会发送姓名、邮箱或账号。你可以随时在设置中再次关闭报告。</string>
+    <string name="feedback_continue">继续</string>
+    <string name="feedback_sentry_link">或通过 Sentry 发送</string>
+    <string name="feedback_sentry_title">通过 Sentry 发送</string>
+    <string name="feedback_sentry_label">发生了什么？</string>
+    <string name="feedback_sentry_note">已附上你的匿名信息。我们无法回复从这里发送的消息，如需回复，请使用 GitHub 或邮件。</string>
+    <string name="feedback_sentry_send">发送</string>
+    <string name="feedback_sentry_sent">已通过 Sentry 发送。谢谢！</string>
 
     <!-- Accessibility labels (contentDescription only) -->
     <string name="cd_menu">菜单</string>
@@ -271,6 +287,7 @@
     <string name="play_all">全部播放</string>
     <string name="shuffle_all">随机播放全部</string>
     <string name="cd_shuffle">随机播放</string>
+    <string name="cd_scroll_to_now_playing">跳到正在播放的歌曲</string>
     <string name="cd_sleep_timer">睡眠定时器</string>
     <string name="cd_captions">字幕</string>
     <string name="cd_drag_to_reorder">拖动以重新排序</string>
@@ -534,6 +551,22 @@
     <string name="video_details_delete_message">要永久删除你的评论及其所有回复吗？</string>
     <string name="video_details_deleted">评论已删除</string>
     <string name="menu_details_comments">详情和评论</string>
+    <string name="menu_search_lyrics">搜索歌词</string>
     <string name="menu_speed_pitch">速度和音调</string>
     <string name="link_open_failed">无法打开：%1$s</string>
+    <string name="sort_manual">手动</string>
+    <string name="arrange_songs">排列歌曲</string>
+    <string name="arrange_stacking">堆叠中 · %1$d</string>
+    <string name="cd_reset_stacking">重置堆叠</string>
+    <string name="cd_move_to_top">移至顶部</string>
+    <string name="dialog_undo">撤销</string>
+    <string name="dialog_save">保存</string>
+    <string name="upgraded_message">YMusic 已更新至 %1$s</string>
+    <string name="upgraded_view_changelog">查看更新日志</string>
+    <string name="menu_go_to_artist">前往歌手</string>
+    <string name="menu_go_to_album">前往专辑</string>
+    <string name="link_copied">已复制链接</string>
+    <string name="download_other_format">以其他格式下载</string>
+    <string name="unsubscribe">取消订阅</string>
+    <string name="unsubscribed">已取消订阅</string>
 </resources>

@@ -4,11 +4,69 @@
 
 ### NEW
 - Captions: a scrollable script between the player and the queue. The line at the playhead stays in the middle; tap a line to jump there. CC can keep a main language and a smaller second line ([c7f010371](https://github.com/ymusic-io/YMusicV4/commit/c7f010371b54ec89eb25e31fa671316bb5fc76b4), [038a06f3e](https://github.com/ymusic-io/YMusicV4/commit/038a06f3eb88c1d1618fcb1364fc5b5532489ddb))
-- Share a video or song from Now Playing, the queue, Discover, Library and Downloads ([9801e7b58](https://github.com/ymusic-io/YMusicV4/commit/9801e7b58ae7caaa8102948086065d392758b6dc))
 
 ### IMPROVED
 - Now Playing: tap the picture to play or pause, swipe right or left for the previous or next song, and hold either side to skip 10 seconds. The rewind, previous, play, next and fast-forward buttons are gone.
+- Library and the queue: a downloaded song shares the same app link as a YouTube video.
 
+## 4.0.12
+
+### NEW
+- Share YouTube videos, playlists, channels and albums as a link, from their rows, the queue, Now Playing, video details and the playlist page, through the system share sheet on Android and iOS ([#45](https://github.com/ymusic-io/YMusicV4/issues/45), [#19](https://github.com/ymusic-io/YMusicV4/issues/19), [#38](https://github.com/ymusic-io/YMusicV4/issues/38), [#34](https://github.com/ymusic-io/YMusicV4/issues/34), [bb47fdbc3](https://github.com/ymusic-io/YMusicV4/commit/bb47fdbc3996ef21f7f632b34396239c75cca4ad), [1b1f38c54](https://github.com/ymusic-io/YMusicV4/commit/1b1f38c54337a535c24486cc0a3cd80f9490b0f1), [6ab637c6f](https://github.com/ymusic-io/YMusicV4/commit/6ab637c6f428a13bf4cfd34bcdd93fe33bed59c3), [c46da11a5](https://github.com/ymusic-io/YMusicV4/commit/c46da11a5108c5b49dbd80502476cbb23352a170), [057bc5ef4](https://github.com/ymusic-io/YMusicV4/commit/057bc5ef46ad68780ae88594001160b04e5111ac))
+- The same song menu in every list: Go to artist, Go to album and Add to playlist in the Library, Library search and the queue; Library search also gets Show in folder and Remove from disk ([#45](https://github.com/ymusic-io/YMusicV4/issues/45), [#55](https://github.com/ymusic-io/YMusicV4/issues/55), [b4038e2d3](https://github.com/ymusic-io/YMusicV4/commit/b4038e2d3c741772790159139a74063137ba4c14))
+- Downloads: rename a finished download's file, add it to a playlist, share it, download it in another format, or remove it from disk ([#45](https://github.com/ymusic-io/YMusicV4/issues/45), [824d94527](https://github.com/ymusic-io/YMusicV4/commit/824d9452729f4d98e31bf85d383626a5a162e93e), [d79316ff8](https://github.com/ymusic-io/YMusicV4/commit/d79316ff84e0f2e6bd3b6df2e405bb4899a766bc), [9b94d61ff](https://github.com/ymusic-io/YMusicV4/commit/9b94d61ffb3406479a107efb971bcc5c972f50a5), [43d29aa03](https://github.com/ymusic-io/YMusicV4/commit/43d29aa0328da377310fcbd4b3dfcfe6c8632467))
+- Switch a YouTube video's audio track, e.g. take an auto-dubbed video back to its original language ([#36](https://github.com/ymusic-io/YMusicV4/issues/36), [8d5e10ae6](https://github.com/ymusic-io/YMusicV4/commit/8d5e10ae6128f98236840c2b05911e9c9b8b4a6c), [d04f2e1f7](https://github.com/ymusic-io/YMusicV4/commit/d04f2e1f775a37cf5933f3169fb286cbcfd525a7))
+- Android: Open with YMusic for audio and video files from file managers and chat apps ([67f0a273e](https://github.com/ymusic-io/YMusicV4/commit/67f0a273eaa343cb717c0e45c548ee7a0a848f05))
+- Now Playing: Search lyrics menu item ([35b76fa58](https://github.com/ymusic-io/YMusicV4/commit/35b76fa589992076af91d2dfa765b94b617f73c2))
+- Now Playing: the playing song is highlighted in the queue, and a button next to "Up next" scrolls back to it ([#40](https://github.com/ymusic-io/YMusicV4/issues/40), [3a3933bf4](https://github.com/ymusic-io/YMusicV4/commit/3a3933bf4198e97a3885332b9674b6b730fb9b74))
+- Library: sort songs by track number ([#46](https://github.com/ymusic-io/YMusicV4/issues/46), [fb519acc8](https://github.com/ymusic-io/YMusicV4/commit/fb519acc8feaaaa5bb033186f7aaa8e306ad561a))
+- Subscribe / Unsubscribe from a channel row's menu when signed in ([bb47fdbc3](https://github.com/ymusic-io/YMusicV4/commit/bb47fdbc3996ef21f7f632b34396239c75cca4ad))
+
+### FIXED
+- Android: playback crashed on some phones, mostly on Android 15 and custom ROMs, while setting the cover art for the media notification ([#75](https://github.com/ymusic-io/YMusicV4/issues/75), [#49](https://github.com/ymusic-io/YMusicV4/issues/49), [135b8830c](https://github.com/ymusic-io/YMusicV4/commit/135b8830cddbabb67ea11484a700ab7b9125823c))
+- macOS 11: the app crashed at launch ([#54](https://github.com/ymusic-io/YMusicV4/issues/54), [8f5c41c32](https://github.com/ymusic-io/YMusicV4/commit/8f5c41c32ce1fdd195ae0d3b84a86d14e672d308))
+- iOS: YouTube sign-in never finished when the YouTube app was installed ([594e70005](https://github.com/ymusic-io/YMusicV4/commit/594e7000569ac4bcf4adfde93d5f6f1d016b882f))
+- Android: 1080p and higher videos dropped frames, froze while the audio played on, and heated up phones without a hardware AV1 decoder ([#52](https://github.com/ymusic-io/YMusicV4/issues/52), [e1a2ffdc1](https://github.com/ymusic-io/YMusicV4/commit/e1a2ffdc1964de2bfb803237f0262b04b74dbc12))
+- Opus and Ogg files (.opus, .ogg, .oga) couldn't be added to the Library ([#23](https://github.com/ymusic-io/YMusicV4/issues/23), [51ea29a82](https://github.com/ymusic-io/YMusicV4/commit/51ea29a82afb8617f1104cb9bda2729735b373bd))
+- Playlist download: the mini player covered the Download button ([#65](https://github.com/ymusic-io/YMusicV4/issues/65), [#68](https://github.com/ymusic-io/YMusicV4/issues/68), [#41](https://github.com/ymusic-io/YMusicV4/issues/41), [4c97b0745](https://github.com/ymusic-io/YMusicV4/commit/4c97b07458a560e23f0c0c413cb4e22067bf9fcd))
+- A download folder that already held music looked empty until a rescan ([965394ae3](https://github.com/ymusic-io/YMusicV4/commit/965394ae39a8e7818d52220d31699d61a0a18e20), [b88f99000](https://github.com/ymusic-io/YMusicV4/commit/b88f990002a17c80c3932467821c8dbc76284a24))
+- Some YouTube thumbnails and comment avatars didn't load ([338fbffa2](https://github.com/ymusic-io/YMusicV4/commit/338fbffa21bf60a212a0d01e7f1edbdd3b46a92e))
+- Desktop: clicking the app icon didn't bring back a window hidden to the tray ([0ef358ce4](https://github.com/ymusic-io/YMusicV4/commit/0ef358ce4762f6550157baa8f12a56be17b60792))
+
+### IMPROVED
+- Speed and pitch move in 0.01 steps, and holding −/+ keeps stepping ([#67](https://github.com/ymusic-io/YMusicV4/issues/67), [9b72f1e70](https://github.com/ymusic-io/YMusicV4/commit/9b72f1e70bb7cb058d2f997b2135215afe1a0257))
+- Ukrainian: strings that still showed in English are translated ([#56](https://github.com/ymusic-io/YMusicV4/issues/56), [ff2f101ef](https://github.com/ymusic-io/YMusicV4/commit/ff2f101ef92d57afadea381c19d8600efcbb06d4))
+
+## 4.0.11
+
+### NEW
+- Arrange your own playlist's songs: a Manual sort opens a dialog to drag, remove, and stack songs at the top with Move to top ([#28](https://github.com/ymusic-io/YMusicV4/issues/28), [36fedbc2e](https://github.com/ymusic-io/YMusicV4/commit/36fedbc2e112c468588dfa0abf2b2a7718ed1605))
+- Swipe a song in the Now Playing queue to the right to remove it ([#28](https://github.com/ymusic-io/YMusicV4/issues/28), [ab2ca58ed](https://github.com/ymusic-io/YMusicV4/commit/ab2ca58ed0b92e87f2755ef7dbb0daa390cdc515))
+- "YMusic updated" notice on the first launch after an update, with a link to the changelog ([c6fe6aeea](https://github.com/ymusic-io/YMusicV4/commit/c6fe6aeea7a4c8cde71651786e6b5446be4cc611))
+- Feedback: reach us on GitHub or by email quoting your anonymous Device ID, which finds the app logs sent with it, or send a message straight from the app ([0793283a4](https://github.com/ymusic-io/YMusicV4/commit/0793283a44f137d4583f26d43e345b03bb1d0ef3))
+
+### FIXED
+- "Load more" in your own YouTube playlist stopped after the first 100 videos ([#17](https://github.com/ymusic-io/YMusicV4/issues/17), [9a123a519](https://github.com/ymusic-io/YMusicV4/commit/9a123a519b6800960572e8b347288daba3f91622))
+- Sort chips on your YouTube library pages (e.g. Playlists) failed ([ad07107ee](https://github.com/ymusic-io/YMusicV4/commit/ad07107eecbb82262ad67741f829e70bd9b3fccb))
+- Android: every download failed with an error code when the download folder couldn't be reached; it now asks to choose the folder again ([f163a0ba3](https://github.com/ymusic-io/YMusicV4/commit/f163a0ba3af21eb33ba7bb37e173fe412269081d))
+- Android 10: downloads failed into a folder holding more than about 1000 files ([1de8fca59](https://github.com/ymusic-io/YMusicV4/commit/1de8fca59f8fb4127794834b56590eec2045b192))
+- Android: installing a downloaded update could fail because the system cleared the APK ([36c5f8bf0](https://github.com/ymusic-io/YMusicV4/commit/36c5f8bf0e902857bf605e4f923502f24d659c47))
+- Library folders that were deleted, became unreadable or lost their access kept showing their songs ([3f420c5de](https://github.com/ymusic-io/YMusicV4/commit/3f420c5deafad4318251f8c017c5fb6db13bbdd5), [4ff5a730a](https://github.com/ymusic-io/YMusicV4/commit/4ff5a730a2a1b89d7a62b68d18c63fcd9b8d841e))
+- Android: .m3u/.m3u8 playlist files showed up as songs and crashed when played ([25f654ec1](https://github.com/ymusic-io/YMusicV4/commit/25f654ec105c500c81e5f9064114ed81684b3c27))
+- Downloading some videos that YouTube was still processing failed with an error code ([4a0fe952f](https://github.com/ymusic-io/YMusicV4/commit/4a0fe952f9bb13f427e9cb25f845b40dd685332f))
+- Android: crash entering picture-in-picture on some phones ([a91f2951b](https://github.com/ymusic-io/YMusicV4/commit/a91f2951bc5b903bb0f418668552d3850bad0b2a))
+- Android: the app could freeze on some phones while updating the playback notification ([6ec2ca6ef](https://github.com/ymusic-io/YMusicV4/commit/6ec2ca6ef15c49a07a60ce1574148299f17fe9c6))
+- With shuffle on, a song added with Play next got shuffled away; queued songs now play next, in the order added ([#24](https://github.com/ymusic-io/YMusicV4/issues/24), [4331d57ae](https://github.com/ymusic-io/YMusicV4/commit/4331d57aede4cb148e3a8d243447fca055ec7ee4))
+- Android: swiping from the left edge opened the menu only on Discover's Home tab; elsewhere it also went back ([834a9560b](https://github.com/ymusic-io/YMusicV4/commit/834a9560be660fb11fc6613fd84ee207097ff443))
+- Right-to-left languages: the tab underline sat under the wrong tab, and dragging the seek bar moved it the opposite way ([#26](https://github.com/ymusic-io/YMusicV4/issues/26), [9389db323](https://github.com/ymusic-io/YMusicV4/commit/9389db323789636fb63c394e5ac4fb1728a66535), [80872090b](https://github.com/ymusic-io/YMusicV4/commit/80872090b3d7e2d035d0ba66ebb57b8ef9226cc5))
+
+### IMPROVED
+- A video that can't play shows YouTube's own reason, in your language (e.g. "Video unavailable · This video is private") ([ee007fb5e..9bf684382](https://github.com/ymusic-io/YMusicV4/compare/6ec2ca6ef15c49a07a60ce1574148299f17fe9c6...9bf6843823d9200c4e7d4b8b9237e93d2847e50a))
+- A song from a Library folder the app lost access to says so and offers to add the folder again ([3b0cbe825..63b6518a5](https://github.com/ymusic-io/YMusicV4/compare/1ccdd1f0b066130a50a9fe13751fdab7411b94d7...63b6518a508fde89dd17219892ac758aad51b6d6))
+- Choosing a download folder checks that files can be saved there, and says why not ([d3c13f487..a42bf0cb6](https://github.com/ymusic-io/YMusicV4/compare/c065b2c42bebb02257e6d3f529f3d2623ce3d947...a42bf0cb69947863fa365146382d9af80032378d))
+- Discover tabs sit next to the title on any window at least 650dp wide, and fill the row evenly on phones ([#12](https://github.com/ymusic-io/YMusicV4/issues/12), [cd86791f8](https://github.com/ymusic-io/YMusicV4/commit/cd86791f8fe07da13644a77e2e9a0baa9fe9b6ac), [d61271f42](https://github.com/ymusic-io/YMusicV4/commit/d61271f428e3623a0c3bfa5017117766bde93033))
+- Larger account menu rows in Discover's Library ([1de85f565](https://github.com/ymusic-io/YMusicV4/commit/1de85f565b769987f0a0355649abca086732b96a))
+- A YouTube video blocked by the bot check says "Botguard bypass failure" instead of a bare error code ([58196378f](https://github.com/ymusic-io/YMusicV4/commit/58196378fc7c4d2410f16c419799106d3cfa946c))
 ## 4.0.10
 
 ### NEW

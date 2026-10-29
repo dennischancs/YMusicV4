@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -46,6 +45,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -58,11 +58,13 @@ import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.outlined.ClosedCaptionOff
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Equalizer
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lyrics
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Speed
@@ -73,8 +75,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -84,15 +89,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -105,6 +110,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -120,6 +126,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import io.ymusic.dynamicengine.yt.YtFeedItem
+import io.ymusic.mediastore.model.MediaStoreItem
 import io.ymusic.player.LoopMode
 import io.ymusic.player.PlayableItem
 import io.ymusic.player.PlaybackState
@@ -158,6 +166,7 @@ import io.ymusic.ui.resources.cd_play
 import io.ymusic.ui.resources.cd_repeat_all
 import io.ymusic.ui.resources.cd_repeat_off
 import io.ymusic.ui.resources.cd_repeat_one
+import io.ymusic.ui.resources.cd_scroll_to_now_playing
 import io.ymusic.ui.resources.cd_share
 import io.ymusic.ui.resources.cd_shuffle
 import io.ymusic.ui.resources.cd_unlock_rotation
@@ -169,10 +178,17 @@ import io.ymusic.ui.resources.error_supervised_account
 import io.ymusic.ui.resources.ic_sponsor_block
 import io.ymusic.ui.resources.menu_add_to_playlist
 import io.ymusic.ui.resources.menu_details_comments
+import io.ymusic.ui.resources.menu_go_to_album
+import io.ymusic.ui.resources.menu_go_to_artist
 import io.ymusic.ui.resources.menu_reload_player
+import io.ymusic.ui.resources.menu_search_lyrics
 import io.ymusic.ui.resources.menu_speed_pitch
+import io.ymusic.ui.resources.menu_start_radio
+import io.ymusic.ui.resources.playback_add_folder_again
+import io.ymusic.ui.resources.playback_botguard_failed
 import io.ymusic.ui.resources.playback_failed
 import io.ymusic.ui.resources.playback_file_missing
+import io.ymusic.ui.resources.playback_folder_access_lost
 import io.ymusic.ui.resources.playback_retry_later
 import io.ymusic.ui.resources.playback_sign_in_required
 import io.ymusic.ui.resources.playback_unavailable
@@ -181,6 +197,7 @@ import io.ymusic.ui.resources.queue_end
 import io.ymusic.ui.resources.queue_load_failed
 import io.ymusic.ui.resources.queue_load_more
 import io.ymusic.ui.resources.queue_loading_more
+import io.ymusic.ui.resources.queue_next
 import io.ymusic.ui.resources.queue_save_as_yt_playlist
 import io.ymusic.ui.resources.remove_from_queue
 import io.ymusic.ui.resources.retry
@@ -465,7 +482,7 @@ private fun FullscreenVideo(graph: AppGraph, coordinator: PlaybackCoordinator, o
                     onToggleFullscreen = onExit,
                 )
             }
-            status.error?.let { PlaybackErrorText(graph.player, it, VideoOverlayNative.showing) }
+            status.error?.let { PlaybackErrorText(graph, it, VideoOverlayNative.showing) }
             PlayerCaptionOverlay(graph.player, VideoOverlayNative.showing, fill = fillScreen)
         }
     }
@@ -503,7 +520,8 @@ private fun PortraitNowPlaying(
         }
     }
     // Queue rows sit after the controls item and the sticky header in this list.
-    val dragState = rememberQueueDragState(listState, indexOffset = 2, player)
+    val dragState = rememberReorderDragState(listState, indexOffset = 2) { from, to -> player.move(from, to) }
+    val locateCurrent = rememberLocateCurrent(listState, queue.currentIndex, indexOffset = 2)
 
     Column(
         Modifier.fillMaxSize()
@@ -535,7 +553,7 @@ private fun PortraitNowPlaying(
                         onToggleFullscreen = onFullscreen,
                     )
                 }
-                status.error?.let { PlaybackErrorText(player, it, VideoOverlayNative.showing) }
+                status.error?.let { PlaybackErrorText(graph, it, VideoOverlayNative.showing) }
                 val overlayOn = VideoOverlayNative.showing
                 PlayerCaptionOverlay(player, overlayVisible = overlayOn)
                 if (!overlayOn) {
@@ -598,7 +616,7 @@ private fun PortraitNowPlaying(
                         else Modifier,
                     ),
                 ) {
-                    QueueHeader(coordinator, queue.currentIndex, queue.displayTotal, queue.shuffle, queue.loopMode)
+                    QueueHeader(coordinator, queue.currentIndex, queue.displayTotal, queue.shuffle, queue.loopMode, locateCurrent)
                     HorizontalDivider(color = DesignColors.Divider)
                 }
             }
@@ -649,7 +667,7 @@ private fun LandscapeNowPlaying(
                     AutoHidingOverlay {
                         VideoOverlayControls(coordinator, status, progress, current, onToggleFullscreen = onFullscreen)
                     }
-                    status.error?.let { PlaybackErrorText(player, it, VideoOverlayNative.showing) }
+                    status.error?.let { PlaybackErrorText(graph, it, VideoOverlayNative.showing) }
                     PlayerCaptionOverlay(player, VideoOverlayNative.showing)
                 }
             }
@@ -661,10 +679,11 @@ private fun LandscapeNowPlaying(
             ) {
                 PlayerTopBar(coordinator, sleepMs, onClose)
                 CaptionScript(player)
-                QueueHeader(coordinator, queue.currentIndex, queue.displayTotal, queue.shuffle, queue.loopMode)
-                HorizontalDivider(color = DesignColors.Divider)
                 val queueListState = rememberLazyListState()
-                val dragState = rememberQueueDragState(queueListState, indexOffset = 0, player)
+                val locateCurrent = rememberLocateCurrent(queueListState, queue.currentIndex, indexOffset = 0)
+                QueueHeader(coordinator, queue.currentIndex, queue.displayTotal, queue.shuffle, queue.loopMode, locateCurrent)
+                HorizontalDivider(color = DesignColors.Divider)
+                val dragState = rememberReorderDragState(queueListState, indexOffset = 0) { from, to -> player.move(from, to) }
                 FollowCurrentQueueItem(queueListState, queue.currentIndex)
                 LazyColumn(state = queueListState, modifier = Modifier.weight(1f)) {
                     itemsIndexed(queue.items) { index, item ->
@@ -708,6 +727,26 @@ private fun FollowCurrentQueueItem(listState: LazyListState, currentIndex: Int) 
             } finally {
                 following = false
             }
+        }
+    }
+}
+
+/**
+ * Scrolls the playing row (list index [indexOffset] + [currentIndex]) to the middle of [listState];
+ * null while any part of that row is on screen.
+ */
+@Composable
+private fun rememberLocateCurrent(listState: LazyListState, currentIndex: Int, indexOffset: Int): (() -> Unit)? {
+    val target = indexOffset + currentIndex
+    val onScreen by remember(listState, target) {
+        derivedStateOf { currentIndex < 0 || listState.layoutInfo.visibleItemsInfo.any { it.index == target } }
+    }
+    val scope = rememberCoroutineScope()
+    if (onScreen) return null
+    return {
+        scope.launch {
+            val rows = listState.layoutInfo.visibleItemsInfo.size
+            listState.animateScrollToItem(maxOf(target - rows / 2, 0))
         }
     }
 }
@@ -1033,14 +1072,17 @@ private fun CaptionToggle(player: io.ymusic.player.Player, offTint: Color, iconS
 /** Engine track kind for YouTube auto-translate languages (clones of a source track, one per language). */
 private const val AUTO_TRANSLATE_KIND = "asrt"
 
-/** A playback failure for the user: a known category, else "Playback failed (code)". */
+/** A playback failure for the user: a known category, the text the source gave for it (YouTube's own words
+ *  for a playability verdict), else our message for the verdict, else "Playback failed (code)". */
 internal fun playerErrorText(error: io.ymusic.player.PlayerError): UiText = when {
     error.code == CAPTCHA_CODE -> UiText.Resource(Res.string.error_captcha)
     error.code == "network" -> UiText.Resource(Res.string.error_network)
     error.code == SUPERVISED_ACCOUNT_CODE -> UiText.Resource(Res.string.error_supervised_account)
     error.code == io.ymusic.player.PlayerError.FILE_MISSING -> UiText.Resource(Res.string.playback_file_missing)
+    error.code == io.ymusic.player.PlayerError.FOLDER_ACCESS_LOST -> UiText.Resource(Res.string.playback_folder_access_lost)
     error.code == io.ymusic.player.PlayerError.VIDEO_DECODER_FAILED -> UiText.Resource(Res.string.playback_video_unsupported)
-    else -> when (error.playability()) {
+    error.code == io.ymusic.player.PlayerError.PO_TOKEN_REJECTED -> UiText.Resource(Res.string.playback_botguard_failed)
+    else -> error.userMessage?.let(UiText::Plain) ?: when (error.playability()) {
         Playability.SignInRequired -> UiText.Resource(Res.string.playback_sign_in_required)
         Playability.Unavailable -> UiText.Resource(Res.string.playback_unavailable)
         Playability.RetryLater -> UiText.Resource(Res.string.playback_retry_later)
@@ -1058,17 +1100,23 @@ suspend fun playerErrorMessage(error: io.ymusic.player.PlayerError): String = pl
  */
 @Composable
 private fun BoxScope.PlaybackErrorText(
-    player: io.ymusic.player.Player,
+    graph: AppGraph,
     error: io.ymusic.player.PlayerError,
     overlayVisible: Boolean,
 ) {
+    val player = graph.player
     val controlsInset by animateDpAsState(if (overlayVisible) VideoControlsStrip * LocalVideoOverlayScale.current else 44.dp)
     val captcha = error.code == CAPTCHA_CODE
     val signIn = error.playability() == Playability.SignInRequired
     val resolver = LocalCaptchaResolver.current
     val openLogin = LocalOpenLogin.current
+    val scanController = LocalScanController.current
+    val scanFolder = graph.scanLibraryFolder
     val actions = buildList<Pair<String, () -> Unit>> {
         if (signIn) add(stringResource(Res.string.signin_button) to openLogin)
+        if (error.code == io.ymusic.player.PlayerError.FOLDER_ACCESS_LOST && scanController != null && scanFolder != null) {
+            add(stringResource(Res.string.playback_add_folder_again) to { scanController.start(scanFolder) })
+        }
         if (captcha && resolver != null) add(stringResource(resolver.label) to { resolver.resolve { player.play() } })
         // play() reloads the current item after a retryable error. A stream the device cannot decode
         // would fail again, so that retry plays audio only; picking a quality turns video back on.
@@ -1215,11 +1263,6 @@ private fun PlayerTopBar(coordinator: PlaybackCoordinator, sleepMs: Long?, onClo
                 onSelect = { player.selectVideoQuality(it) },
             )
         }
-        val current = queue.currentItem
-        val share = rememberSharePlayable(coordinator.graph)
-        if (current != null) {
-            ActionIcon(Icons.Outlined.Share, stringResource(Res.string.cd_share), onClick = { share(current) })
-        }
         PlayerMoreMenu(coordinator)
     }
 }
@@ -1350,24 +1393,22 @@ private fun PlayerMoreMenu(coordinator: PlaybackCoordinator) {
     var detailsOpen by remember { mutableStateOf(false) }
     val current = player.queue.collectAsState().value.currentItem
     val video = current as? PlayableItem.YtMedia
+    val shareVideoId by produceState<String?>(null, current) {
+        value = current?.let { queueVideoIds(coordinator.graph, listOf(it)).firstOrNull() }
+    }
+    val uriHandler = LocalUriHandler.current
     val ytPlaylists = LocalYtPlaylistActions.current
+    val shareYoutube = LocalShareYoutube.current
     val snackbar = LocalSnackbar.current
     val noVideos = stringResource(Res.string.yt_playlist_queue_empty)
     val scope = rememberCoroutineScope()
     var tracksOpen by remember { mutableStateOf(false) }
     val config by player.config.collectAsState()
-    val share = rememberSharePlayable(coordinator.graph)
     HoldVideoOverlay(open || tracksOpen || playbackOpen || eqOpen || detailsOpen)
 
     Box {
         ActionIcon(Icons.Default.MoreVert, stringResource(Res.string.cd_more), onClick = { open = true })
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.width(MoreMenuWidth)) {
-            if (current != null) {
-                MoreMenuItem(Icons.Outlined.Share, stringResource(Res.string.cd_share)) {
-                    open = false
-                    share(current)
-                }
-            }
             if (video != null) {
                 MoreMenuItem(Icons.Outlined.Info, stringResource(Res.string.menu_details_comments)) {
                     detailsOpen = true
@@ -1380,6 +1421,13 @@ private fun PlayerMoreMenu(coordinator: PlaybackCoordinator) {
                     }
                 }
             }
+            val shareId = shareVideoId
+            if (shareYoutube != null && shareId != null) {
+                MoreMenuItem(Icons.Outlined.Share, stringResource(Res.string.cd_share)) {
+                    shareYoutube(YtFeedItem.KIND_VIDEO, shareId)
+                    open = false
+                }
+            }
             if (ytPlaylists != null) {
                 MoreMenuItem(Icons.AutoMirrored.Outlined.QueueMusic, stringResource(Res.string.queue_save_as_yt_playlist)) {
                     open = false
@@ -1389,7 +1437,13 @@ private fun PlayerMoreMenu(coordinator: PlaybackCoordinator) {
                     }
                 }
             }
-            if (video != null || ytPlaylists != null) MoreMenuDivider()
+            if (current != null) {
+                MoreMenuItem(Icons.Outlined.Lyrics, stringResource(Res.string.menu_search_lyrics)) {
+                    uriHandler.openUri(lyricsSearchUrl(current))
+                    open = false
+                }
+            }
+            if (ytPlaylists != null || current != null) MoreMenuDivider()
             MoreMenuItem(
                 Icons.Outlined.Speed,
                 stringResource(Res.string.menu_speed_pitch),
@@ -1458,6 +1512,13 @@ private fun PlayerMoreMenu(coordinator: PlaybackCoordinator) {
     }
 }
 
+/** A YouTube item's artist is the uploading channel, which only muddies the search. */
+private fun lyricsSearchUrl(item: PlayableItem): String {
+    val artist = (item as? PlayableItem.LocalMedia)?.artist
+    val query = listOfNotNull(artist, item.displayTitle, "lyrics").joinToString(" ")
+    return "https://www.google.com/search?q=${percentEncode(query)}"
+}
+
 /** 3dp track, orange fill, 13dp orange thumb; the m:ss / h:mm:ss labels underneath. */
 @Composable
 private fun SeekBar(player: io.ymusic.player.Player, progress: Progress) {
@@ -1512,17 +1573,19 @@ private fun SeekSlider(
     val skipSegments by player.skipSegments.collectAsState()
     val queue by player.queue.collectAsState()
     val streamed = queue.currentItem !is PlayableItem.LocalMedia
-    SlimSeekBar(
-        fraction = if (durationMs > 0) progress.positionMs.toFloat() / durationMs else 0f,
-        bufferedFraction = if (streamed && durationMs > 0) progress.bufferedPositionMs.toFloat() / durationMs else 0f,
-        bufferedColor = bufferedColor,
-        enabled = progress.seekable && durationMs > 0,
-        onSeek = { f -> player.seekTo((f * durationMs).toLong()) },
-        onScrub = { f -> onScrubMs?.invoke(if (f == null || durationMs <= 0) null else (f * durationMs).toLong()) },
-        trackColor = trackColor,
-        skipFractions = skipSegmentFractions(skipSegments, durationMs),
-        modifier = Modifier.fillMaxWidth(),
-    )
+    MediaLtr {
+        SlimSeekBar(
+            fraction = if (durationMs > 0) progress.positionMs.toFloat() / durationMs else 0f,
+            bufferedFraction = if (streamed && durationMs > 0) progress.bufferedPositionMs.toFloat() / durationMs else 0f,
+            bufferedColor = bufferedColor,
+            enabled = progress.seekable && durationMs > 0,
+            onSeek = { f -> player.seekTo((f * durationMs).toLong()) },
+            onScrub = { f -> onScrubMs?.invoke(if (f == null || durationMs <= 0) null else (f * durationMs).toLong()) },
+            trackColor = trackColor,
+            skipFractions = skipSegmentFractions(skipSegments, durationMs),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 /** Media controls stay left-to-right in RTL locales, matching the seek bar's direction of time. */
@@ -1579,7 +1642,14 @@ private fun QueueMoreRow(player: Player, more: QueueMore) {
 }
 
 @Composable
-private fun QueueHeader(coordinator: PlaybackCoordinator, currentIndex: Int, total: Int, shuffle: Boolean, loopMode: LoopMode) {
+private fun QueueHeader(
+    coordinator: PlaybackCoordinator,
+    currentIndex: Int,
+    total: Int,
+    shuffle: Boolean,
+    loopMode: LoopMode,
+    onLocateCurrent: (() -> Unit)?,
+) {
     val player = coordinator.player
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
@@ -1594,6 +1664,14 @@ private fun QueueHeader(coordinator: PlaybackCoordinator, currentIndex: Int, tot
             "${currentIndex + 1} / $total",
             style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = DesignColors.InkFaint),
         )
+        if (onLocateCurrent != null) {
+            ActionIcon(
+                Icons.Default.GpsFixed,
+                stringResource(Res.string.cd_scroll_to_now_playing),
+                tint = DesignColors.InkSoft,
+                onClick = onLocateCurrent,
+            )
+        }
         Box(Modifier.weight(1f))
         ActionIcon(
             if (loopMode == LoopMode.One) Icons.Default.RepeatOne else Icons.Default.Repeat,
@@ -1637,130 +1715,72 @@ private suspend fun queueVideoIds(graph: AppGraph, items: List<PlayableItem>): L
     }.distinct()
 }
 
-/**
- * Drag-to-reorder for the queue lists. A drag on a row's handle starts it; rows swap live through
- * `player.move` whenever the dragged row's center crosses a neighbour, and the list autoscrolls
- * while the row is held past either viewport edge. [indexOffset] maps queue indices to lazy-item
- * indices (the portrait list carries the controls item and the sticky header before the rows).
- */
-private class QueueDragState(
-    private val listState: LazyListState,
-    private val indexOffset: Int,
-    private val onMove: (Int, Int) -> Unit,
-) {
-    var draggingIndex by mutableStateOf<Int?>(null)
-        private set
-    var dragOffset by mutableFloatStateOf(0f)
-        private set
-
-    /** Pixels the dragged row overhangs the viewport — the autoscroll loop's speed input. */
-    var autoscroll by mutableFloatStateOf(0f)
-        private set
-
-    fun start(index: Int) {
-        draggingIndex = index
-        dragOffset = 0f
-    }
-
-    fun drag(deltaY: Float) {
-        dragOffset += deltaY
-        swapIfCrossed()
-        val info = draggedItem() ?: return
-        val layout = listState.layoutInfo
-        val top = info.offset + dragOffset
-        val bottom = top + info.size
-        autoscroll = when {
-            bottom > layout.viewportEndOffset -> bottom - layout.viewportEndOffset
-            top < layout.viewportStartOffset -> top - layout.viewportStartOffset
-            else -> 0f
-        }
-    }
-
-    /** The autoscroll loop reports what the list scrolled; keeps the row under the pointer. */
-    fun scrolledBy(consumed: Float) {
-        dragOffset += consumed
-        swapIfCrossed()
-    }
-
-    /** The list hit its end — stop the loop until the next drag event re-evaluates. */
-    fun stopAutoscroll() {
-        autoscroll = 0f
-    }
-
-    fun end() {
-        draggingIndex = null
-        dragOffset = 0f
-        autoscroll = 0f
-    }
-
-    private fun draggedItem() = draggingIndex?.let { dragged ->
-        listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == dragged + indexOffset }
-    }
-
-    private fun swapIfCrossed() {
-        val from = draggingIndex ?: return
-        val info = draggedItem() ?: return
-        val center = info.offset + dragOffset + info.size / 2f
-        val target = listState.layoutInfo.visibleItemsInfo.firstOrNull {
-            it.index != info.index && it.index >= indexOffset &&
-                center >= it.offset && center < it.offset + it.size
-        } ?: return
-        onMove(from, target.index - indexOffset)
-        // The moved row is laid out at the target's old slot next frame; fold the base-position
-        // change into the translation so it stays under the pointer.
-        dragOffset += info.offset - target.offset
-        draggingIndex = target.index - indexOffset
-    }
-}
-
-@Composable
-private fun rememberQueueDragState(
-    listState: LazyListState,
-    indexOffset: Int,
-    player: io.ymusic.player.Player,
-): QueueDragState {
-    val state = remember(listState, player) {
-        QueueDragState(listState, indexOffset) { from, to -> player.move(from, to) }
-    }
-    LaunchedEffect(state) {
-        while (true) {
-            snapshotFlow { state.autoscroll }.first { it != 0f }
-            while (state.autoscroll != 0f) {
-                val step = (state.autoscroll * 0.12f).coerceIn(-24f, 24f)
-                val consumed = listState.scrollBy(step)
-                if (consumed == 0f) {
-                    state.stopAutoscroll()
-                    break
-                }
-                state.scrolledBy(consumed)
-                withFrameNanos {}
-            }
-        }
-    }
-    return state
-}
-
 @Composable
 private fun QueueRow(
     coordinator: PlaybackCoordinator,
     index: Int,
     item: io.ymusic.player.PlayableItem,
     current: Boolean,
-    dragState: QueueDragState,
+    dragState: ReorderDragState,
     large: Boolean = false,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
-    val share = rememberSharePlayable(coordinator.graph)
     val dragging = dragState.draggingIndex == index
+    val swipeState = rememberSwipeToDismissBoxState()
+    val currentIndex by rememberUpdatedState(index)
+    // Rows are keyed by position: once the swiped row is gone its slot shows the next item, so the
+    // state must be back at Settled in the same frame.
+    LaunchedEffect(swipeState.currentValue) {
+        if (swipeState.currentValue != SwipeToDismissBoxValue.Settled) {
+            coordinator.player.removeAt(currentIndex)
+            swipeState.snapTo(SwipeToDismissBoxValue.Settled)
+        }
+    }
+    SwipeToDismissBox(
+        swipeState,
+        backgroundContent = {
+            if (swipeState.dismissDirection != SwipeToDismissBoxValue.Settled) {
+                Box(
+                    Modifier.fillMaxSize().background(DesignColors.SurfaceDim).padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Icon(Icons.Outlined.Delete, null, Modifier.size(20.dp), tint = DesignColors.InkSecondary)
+                }
+            }
+        },
+        modifier = Modifier
+            .zIndex(if (dragging) 1f else 0f)
+            .graphicsLayer { translationY = if (dragging) dragState.dragOffset else 0f },
+        enableDismissFromEndToStart = false,
+        gesturesEnabled = dragState.draggingIndex == null,
+    ) {
+        val swiping = swipeState.dismissDirection != SwipeToDismissBoxValue.Settled
+        QueueRowContent(coordinator, index, item, current, dragState, large, dragging, swiping)
+    }
+}
+
+@Composable
+private fun QueueRowContent(
+    coordinator: PlaybackCoordinator,
+    index: Int,
+    item: io.ymusic.player.PlayableItem,
+    current: Boolean,
+    dragState: ReorderDragState,
+    large: Boolean,
+    dragging: Boolean,
+    swiping: Boolean,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         Modifier
             .fillMaxWidth()
-            .zIndex(if (dragging) 1f else 0f)
-            .graphicsLayer { translationY = if (dragging) dragState.dragOffset else 0f }
             .then(
-                if (dragging) Modifier.shadow(4.dp).background(DesignColors.SurfaceElevated)
-                else Modifier,
+                when {
+                    dragging -> Modifier.shadow(4.dp).background(DesignColors.SurfaceElevated)
+                    swiping -> Modifier.background(DesignColors.Surface)
+                    else -> Modifier
+                },
             )
+            .then(if (current) Modifier.background(DesignColors.Accent.copy(alpha = 0.1f)) else Modifier)
             .clickable { coordinator.player.playAt(index) }
             .padding(horizontal = 16.dp, vertical = if (large) 10.dp else 8.dp),
         horizontalArrangement = Arrangement.spacedBy(if (large) 12.dp else 8.dp),
@@ -1822,26 +1842,73 @@ private fun QueueRow(
                 onClick = { menuOpen = true },
             )
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.cd_share)) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Outlined.Share,
-                            contentDescription = null,
-                            Modifier.size(20.dp),
-                            tint = DesignColors.InkMuted,
-                        )
-                    },
-                    onClick = {
-                        menuOpen = false
-                        share(item)
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(Res.string.remove_from_queue)) },
-                    onClick = { coordinator.player.removeAt(index); menuOpen = false },
-                )
+                queueItemActions(coordinator, index, item, current).entries.forEach { (label, action) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            menuOpen = false
+                            action()
+                        },
+                    )
+                }
             }
         }
     }
+}
+
+/** A queue row's menu (the legacy app's queue item menu): a local file gets the song actions, a YouTube
+ *  video the video ones; both can jump next in line or leave the queue. */
+@Composable
+private fun queueItemActions(coordinator: PlaybackCoordinator, index: Int, item: PlayableItem, current: Boolean): ItemActions {
+    val player = coordinator.player
+    val playNext = stringResource(Res.string.queue_next)
+    val removeFromQueue = stringResource(Res.string.remove_from_queue)
+    val addToPlaylistLabel = stringResource(Res.string.menu_add_to_playlist)
+    val shareLabel = stringResource(Res.string.cd_share)
+    val song by produceState<MediaStoreItem?>(null, item) {
+        val mediaId = (item as? PlayableItem.LocalMedia)?.mediaId ?: return@produceState
+        value = coordinator.graph.mediaStore?.findItem(mediaId)
+    }
+    val addSongToPlaylist = LocalAddToPlaylist.current
+    val goToGroup = LocalGoToLibraryGroup.current
+    val goToArtist = stringResource(Res.string.menu_go_to_artist)
+    val goToAlbum = stringResource(Res.string.menu_go_to_album)
+    val shareYoutube = LocalShareYoutube.current
+    val ytPlaylists = LocalYtPlaylistActions.current
+    val downloadLauncher = LocalDownloadLauncher.current
+    val startRadio = stringResource(Res.string.menu_start_radio)
+    val download = stringResource(Res.string.cd_download)
+    return ItemActions(
+        buildList {
+            val video = coordinator.downloadable(item)
+            if (video != null) add(startRadio to { coordinator.playNow(video) })
+            if (!current) {
+                add(
+                    playNext to {
+                        val currentIndex = player.queue.value.currentIndex
+                        if (currentIndex >= 0) player.move(index, if (index > currentIndex) currentIndex + 1 else currentIndex)
+                    },
+                )
+            }
+            when (item) {
+                is PlayableItem.LocalMedia -> song?.let { local ->
+                    if (addSongToPlaylist != null) add(addToPlaylistLabel to { addSongToPlaylist(local) })
+                    if (goToGroup != null) {
+                        add(goToArtist to { goToGroup(LibraryGroupKind.Artist, local) })
+                        add(goToAlbum to { goToGroup(LibraryGroupKind.Album, local) })
+                    }
+                    val videoId = local.youtubeVid
+                    if (shareYoutube != null && videoId != null) {
+                        add(shareLabel to { shareYoutube(YtFeedItem.KIND_VIDEO, videoId) })
+                    }
+                }
+                is PlayableItem.YtMedia -> {
+                    if (ytPlaylists != null) add(addToPlaylistLabel to { ytPlaylists.addToPlaylist(item.videoId) })
+                    if (video != null && downloadLauncher != null) add(download to { downloadLauncher.launch(video) })
+                    if (shareYoutube != null) add(shareLabel to { shareYoutube(YtFeedItem.KIND_VIDEO, item.videoId) })
+                }
+            }
+            add(removeFromQueue to { player.removeAt(index) })
+        },
+    )
 }
