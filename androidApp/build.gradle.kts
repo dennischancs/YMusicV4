@@ -56,7 +56,8 @@ android {
         applicationId = "io.ymusic.android"
         minSdk = Versions.minSdk
         targetSdk = Versions.targetSdk
-        versionCode = 11
+        // 100+: fork line. An appUpdate is offered only when its code is higher.
+        versionCode = 100
         versionName = appVersionName
         buildConfigField("String", "SENTRY_DSN", "\"${sentryDsn()}\"")
         buildConfigField("String", "GIT_COMMIT", "\"${gitCommit()}\"")
