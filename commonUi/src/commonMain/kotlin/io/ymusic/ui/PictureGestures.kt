@@ -58,6 +58,8 @@ enum class PictureGesture {
 const val PictureHoldMs = 2_000L
 const val PictureHintMs = 3_000L
 const val PictureGestureDebounceMs = 80L
+const val PictureSeekStepMs = 10_000L
+const val PictureSeekRepeatMs = 500L
 val PictureSwipeThreshold = 72.dp
 
 /**
@@ -122,11 +124,17 @@ class PictureGestureTracker(
         return null
     }
 
-    /** One shot for a finger that is still inside the slop. The caller waits [PictureHoldMs]. */
+    /** Arms a repeating seek. The caller waits [PictureHoldMs], then [heldSeek] until the finger lifts. */
     fun holdElapsed(): PictureGesture? {
         if (phase != Phase.Tracking || !holdArmed || width <= 0f) return null
         holdArmed = false
         holdFired = true
+        return heldSeek()
+    }
+
+    /** The side still held after [holdElapsed]. Null once the finger lifts or a second finger lands. */
+    fun heldSeek(): PictureGesture? {
+        if (phase != Phase.Tracking || !holdFired || width <= 0f) return null
         return if (downX < width / 2f) PictureGesture.Rewind else PictureGesture.FastForward
     }
 
@@ -153,6 +161,16 @@ internal class PictureGestureDebounce(
 
 private val pictureGestureDebounce = PictureGestureDebounce()
 private val pictureGestureClock = TimeSource.Monotonic.markNow()
+
+/** One press of the old rewind or fast-forward button. Rewind stops at 0; fast-forward stops at a known duration. */
+internal fun nextPictureSeekMs(positionMs: Long, gesture: PictureGesture, durationMs: Long = -1L): Long = when (gesture) {
+    PictureGesture.Rewind -> (positionMs - PictureSeekStepMs).coerceAtLeast(0L)
+    PictureGesture.FastForward -> {
+        val next = positionMs + PictureSeekStepMs
+        if (durationMs > 0L) next.coerceAtMost(durationMs) else next
+    }
+    else -> positionMs
+}
 
 /** @return false when [gesture] repeats inside [PictureGestureDebounceMs] (two targets, one click). */
 fun performPictureGesture(player: Player, gesture: PictureGesture): Boolean {
@@ -236,7 +254,21 @@ internal fun PictureGestureCatcher(player: Player, modifier: Modifier = Modifier
                         var suppressed = false
                         val hold = scope.launch {
                             delay(PictureHoldMs)
-                            tracker.holdElapsed()?.let { performPictureGesture(player, it) }
+                            val gesture = tracker.holdElapsed() ?: return@launch
+                            val now = pictureGestureClock.elapsedNow().inWholeMilliseconds
+                            if (!pictureGestureDebounce.accept(gesture, now)) return@launch
+                            VideoOverlayNative.show()
+                            var at = player.progress.value.positionMs
+                            while (true) {
+                                if (tracker.heldSeek() != gesture) break
+                                val next = nextPictureSeekMs(at, gesture, player.progress.value.durationMs)
+                                if (next != at) {
+                                    at = next
+                                    player.seekTo(at)
+                                }
+                                PictureGestureHints.onGesture(gesture)
+                                delay(PictureSeekRepeatMs)
+                            }
                         }
                         try {
                             while (true) {
