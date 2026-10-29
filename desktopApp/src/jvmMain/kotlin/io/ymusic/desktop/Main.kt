@@ -128,13 +128,16 @@ import io.ymusic.ui.AppHttpClients
 import io.ymusic.ui.CatalogueScreen
 import io.ymusic.ui.FolderWriteProblem
 import io.ymusic.ui.IncomingLinks
+import io.ymusic.ui.PictureGesture
 import io.ymusic.ui.PictureGestureInput
 import io.ymusic.ui.PictureGestureTracker
 import io.ymusic.ui.PictureHoldMs
+import io.ymusic.ui.PictureSeekRepeatMs
 import io.ymusic.ui.PictureSwipeThreshold
 import io.ymusic.ui.ScanResult
 import io.ymusic.ui.VideoOverlayNative
 import io.ymusic.ui.YtEngineSabrSpecResolver
+import io.ymusic.ui.beginPictureSeekHold
 import io.ymusic.ui.bundleConfig
 import io.ymusic.ui.designPaletteFor
 import io.ymusic.ui.downloadLocationFolder
@@ -158,6 +161,7 @@ import io.ymusic.ui.resources.ymusic_logo
 import io.ymusic.ui.sponsorblock.SqliteSponsorBlockStore
 import io.ymusic.ui.sponsorblock.sponsorBlockJdbcDriver
 import io.ymusic.ui.startupFailedMessage
+import io.ymusic.ui.stepPictureSeek
 import io.ymusic.ytmedia.cache.DiskMediaBlobCache
 import io.ymusic.ytmedia.cache.MediaCache
 import io.ymusic.ytmedia.cache.SqlDelightBlobIndex
@@ -1077,6 +1081,9 @@ private fun DesktopPlayerSurface(
 /**
  * NSView and canvas clicks share one tracker. A second press while tracking is a duplicate
  * delivery, not a second finger; the same action inside 80ms is dropped again at [performPictureGesture].
+ * After [PictureHoldMs] the held side steps immediately, then every [PictureSeekRepeatMs] until release.
+ * The first firing is one-shot; [javax.swing.Timer] will not repeat just because [javax.swing.Timer.setRepeats]
+ * flips inside that callback, so the repeat timer is started again.
  */
 private class DesktopPictureMouse(
     private val player: Player,
@@ -1085,16 +1092,16 @@ private class DesktopPictureMouse(
 ) {
     private val tracker = PictureGestureTracker(touchSlopPx, swipePx)
     private var disposed = false
+    private var repeating = false
+    private var held: PictureGesture? = null
+    private var seekFrom = 0L
     private val hold = javax.swing.Timer(PictureHoldMs.toInt()) {
-        SwingUtilities.invokeLater {
-            if (disposed) return@invokeLater
-            tracker.holdElapsed()?.let { performPictureGesture(player, it) }
-        }
+        onHoldTick()
     }.apply { isRepeats = false }
 
     fun dispose() {
         disposed = true
-        hold.stop()
+        stopHold()
         tracker.cancel()
     }
 
@@ -1102,17 +1109,55 @@ private class DesktopPictureMouse(
         SwingUtilities.invokeLater { handle(id, x, y, button) }
     }
 
+    private fun onHoldTick() {
+        if (disposed) return
+        if (!repeating) {
+            val gesture = tracker.holdElapsed() ?: return
+            val at = beginPictureSeekHold(player, gesture)
+            if (at == null) {
+                stopHold()
+                return
+            }
+            held = gesture
+            seekFrom = stepPictureSeek(player, gesture, at)
+            repeating = true
+            val step = PictureSeekRepeatMs.toInt()
+            hold.initialDelay = step
+            hold.delay = step
+            hold.isRepeats = true
+            hold.start()
+            return
+        }
+        val gesture = held
+        if (gesture == null || tracker.heldSeek() != gesture) {
+            stopHold()
+            return
+        }
+        seekFrom = stepPictureSeek(player, gesture, seekFrom)
+    }
+
+    /** Back to the 2 second one-shot. The next press must not keep the 500ms repeat delay. */
+    private fun stopHold() {
+        hold.stop()
+        hold.isRepeats = false
+        val wait = PictureHoldMs.toInt()
+        hold.initialDelay = wait
+        hold.delay = wait
+        repeating = false
+        held = null
+    }
+
     private fun handle(id: Int, x: Int, y: Int, button: Int) {
         if (disposed) return
         if (id == MouseEvent.MOUSE_PRESSED) VideoOverlayNative.onOverlayPress?.invoke()
         if (!PictureGestureInput.active) {
-            hold.stop()
+            stopHold()
             tracker.cancel()
             if (id == MouseEvent.MOUSE_RELEASED) VideoOverlayNative.poke()
             return
         }
         if (VideoOverlayNative.menusOpen > 0) {
-            hold.stop()
+            stopHold()
             tracker.cancel()
             if (id == MouseEvent.MOUSE_RELEASED) VideoOverlayNative.visible = false
             return
@@ -1121,7 +1166,7 @@ private class DesktopPictureMouse(
         val width = frame.width.toFloat()
         val height = frame.height.toFloat()
         if (width < 2f || height < 2f) {
-            hold.stop()
+            stopHold()
             tracker.cancel()
             return
         }
@@ -1130,21 +1175,24 @@ private class DesktopPictureMouse(
         when (id) {
             MouseEvent.MOUSE_PRESSED -> {
                 if (button != MouseEvent.BUTTON1) {
-                    hold.stop()
+                    stopHold()
                     tracker.cancel()
                     return
                 }
                 if (lx < 0f || ly < 0f || lx > width || ly > height) return
-                if (tracker.down(lx, ly, width)) hold.restart()
+                if (tracker.down(lx, ly, width)) {
+                    stopHold()
+                    hold.start()
+                }
             }
-            MouseEvent.MOUSE_DRAGGED -> if (tracker.move(lx, ly)) hold.stop()
+            MouseEvent.MOUSE_DRAGGED -> if (tracker.move(lx, ly)) stopHold()
             MouseEvent.MOUSE_RELEASED -> {
                 if (button != MouseEvent.BUTTON1 && button != MouseEvent.NOBUTTON) {
-                    hold.stop()
+                    stopHold()
                     tracker.cancel()
                     return
                 }
-                hold.stop()
+                stopHold()
                 tracker.up(lx, ly)?.let { performPictureGesture(player, it) }
             }
         }

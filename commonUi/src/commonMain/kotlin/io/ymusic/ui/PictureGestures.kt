@@ -163,13 +163,29 @@ private val pictureGestureDebounce = PictureGestureDebounce()
 private val pictureGestureClock = TimeSource.Monotonic.markNow()
 
 /** One press of the old rewind or fast-forward button. Rewind stops at 0; fast-forward stops at a known duration. */
-internal fun nextPictureSeekMs(positionMs: Long, gesture: PictureGesture, durationMs: Long = -1L): Long = when (gesture) {
+fun nextPictureSeekMs(positionMs: Long, gesture: PictureGesture, durationMs: Long = -1L): Long = when (gesture) {
     PictureGesture.Rewind -> (positionMs - PictureSeekStepMs).coerceAtLeast(0L)
     PictureGesture.FastForward -> {
         val next = positionMs + PictureSeekStepMs
         if (durationMs > 0L) next.coerceAtMost(durationMs) else next
     }
     else -> positionMs
+}
+
+/** Starts a held seek. Null when a second target already took this press. The position is the step base. */
+fun beginPictureSeekHold(player: Player, gesture: PictureGesture): Long? {
+    val now = pictureGestureClock.elapsedNow().inWholeMilliseconds
+    if (!pictureGestureDebounce.accept(gesture, now)) return null
+    VideoOverlayNative.show()
+    return player.progress.value.positionMs
+}
+
+/** One held step from [fromMs], and keep the corner hint up. */
+fun stepPictureSeek(player: Player, gesture: PictureGesture, fromMs: Long): Long {
+    val next = nextPictureSeekMs(fromMs, gesture, player.progress.value.durationMs)
+    if (next != fromMs) player.seekTo(next)
+    PictureGestureHints.onGesture(gesture)
+    return next
 }
 
 /** @return false when [gesture] repeats inside [PictureGestureDebounceMs] (two targets, one click). */
@@ -255,18 +271,10 @@ internal fun PictureGestureCatcher(player: Player, modifier: Modifier = Modifier
                         val hold = scope.launch {
                             delay(PictureHoldMs)
                             val gesture = tracker.holdElapsed() ?: return@launch
-                            val now = pictureGestureClock.elapsedNow().inWholeMilliseconds
-                            if (!pictureGestureDebounce.accept(gesture, now)) return@launch
-                            VideoOverlayNative.show()
-                            var at = player.progress.value.positionMs
+                            var at = beginPictureSeekHold(player, gesture) ?: return@launch
                             while (true) {
                                 if (tracker.heldSeek() != gesture) break
-                                val next = nextPictureSeekMs(at, gesture, player.progress.value.durationMs)
-                                if (next != at) {
-                                    at = next
-                                    player.seekTo(at)
-                                }
-                                PictureGestureHints.onGesture(gesture)
+                                at = stepPictureSeek(player, gesture, at)
                                 delay(PictureSeekRepeatMs)
                             }
                         }
